@@ -3,12 +3,13 @@ import { useLang } from "../context/LangContext";
 import { TICKET_PRICE, RECEIVING_FEE } from "../data/mockData";
 import { recordPayment } from "../lib/store";
 
-const STEPS = { FORM: "form", CONFIRM: "confirm", PROCESSING: "processing", DONE: "done", ERROR: "error" };
+const STEPS = { FORM: "form", CONFIRM: "confirm", PROCESSING: "processing", CHECKOUT: "checkout", DONE: "done", ERROR: "error" };
 
 export default function PaymentModal({ onClose, itemLabel }) {
   const { t } = useLang();
   const [step, setStep] = useState(STEPS.FORM);
   const [phone, setPhone] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState(null);
   const total = TICKET_PRICE + RECEIVING_FEE;
   const recipientName = import.meta.env.VITE_RECIPIENT_DISPLAY_NAME || "Kelvin — King Pronostics";
 
@@ -30,7 +31,15 @@ export default function PaymentModal({ onClose, itemLabel }) {
       if (!res.ok) throw new Error("init failed");
       const data = await res.json();
 
-      // Poll verify-payment every 3s, up to ~2 minutes
+      // Show NotchPay's hosted payment page inside our own modal (iframe)
+      // so the client never visually leaves the site.
+      if (data.authorizationUrl) {
+        setCheckoutUrl(data.authorizationUrl);
+        setStep(STEPS.CHECKOUT);
+      }
+
+      // Poll verify-payment every 3s, up to ~3 minutes, while the client
+      // completes the payment on the NotchPay page.
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts += 1;
@@ -41,7 +50,7 @@ export default function PaymentModal({ onClose, itemLabel }) {
             clearInterval(poll);
             recordPayment({ phone, amount: total, item: itemLabel, date: new Date().toISOString() });
             setStep(STEPS.DONE);
-          } else if (vData.status === "FAILED" || attempts > 40) {
+          } else if (vData.status === "FAILED" || attempts > 60) {
             clearInterval(poll);
             setStep(STEPS.ERROR);
           }
@@ -57,7 +66,7 @@ export default function PaymentModal({ onClose, itemLabel }) {
 
   return (
     <div style={overlay}>
-      <div className="card" style={modal}>
+      <div className="card" style={{ ...modal, maxWidth: step === STEPS.CHECKOUT ? 480 : 420 }}>
         <button onClick={onClose} style={closeBtn} aria-label="Close">✕</button>
 
         {step === STEPS.FORM && (
@@ -112,6 +121,19 @@ export default function PaymentModal({ onClose, itemLabel }) {
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div className="spinner" />
             <p style={{ marginTop: 16 }}>{t.payment.processing}</p>
+          </div>
+        )}
+
+        {step === STEPS.CHECKOUT && checkoutUrl && (
+          <div>
+            <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10, textAlign: "center" }}>
+              {t.payment.checkoutHint}
+            </p>
+            <iframe
+              src={checkoutUrl}
+              title="Paiement"
+              style={{ width: "100%", height: 420, border: "1px solid var(--line)", borderRadius: 10 }}
+            />
           </div>
         )}
 
