@@ -49,6 +49,7 @@ export const translations = {
       confirmNote:
         "Vérifiez bien le nom du bénéficiaire avant de valider sur votre téléphone.",
       processing: "Paiement en cours de confirmation…",
+    checkoutHint: "Complétez votre paiement Mobile Money ci-dessous.",
       success: "Paiement confirmé. Votre ticket est débloqué.",
       failed: "Le paiement n'a pas pu être confirmé. Réessayez.",
     },
@@ -138,6 +139,7 @@ export const translations = {
       confirmNote:
         "Please check the recipient name carefully before confirming on your phone.",
       processing: "Confirming payment…",
+    checkoutHint: "Complete your Mobile Money payment below.",
       success: "Payment confirmed. Your ticket is unlocked.",
       failed: "Payment could not be confirmed. Please try again.",
     },
