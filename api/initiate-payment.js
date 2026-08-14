@@ -2,13 +2,14 @@
 // Your NotchPay private key and hash key NEVER reach the browser.
 // Set these in Vercel -> Project -> Settings -> Environment Variables:
 //   NOTCHPAY_PUBLIC_KEY   (starts with pk. or sb_pk. for sandbox)
-//   NOTCHPAY_PRIVATE_KEY  (starts with sk. — server-side only)
 //   RECIPIENT_NAME        display name shown to clients before they confirm
-//   RECIPIENT_MSISDN      the receiving MTN number (Mr Kelvin's number)
 //
-// NotchPay flow: 1) initialize a payment -> get a reference
-//                2) process it with the client's mobile money number
-//                3) poll /api/verify-payment to confirm success
+// This uses NotchPay's hosted checkout (the same reliable payment page
+// their own "Quick Links" feature uses) instead of a custom direct-charge
+// call — more reliable since NotchPay handles the MTN prompt themselves.
+// Flow: 1) initialize a payment -> get an authorization_url
+//       2) the client completes payment on NotchPay's own page
+//       3) poll /api/verify-payment to confirm success
 
 const NOTCHPAY_BASE = "https://api.notchpay.co";
 
@@ -29,7 +30,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Payment provider not configured" });
     }
 
-    // Step 1: initialize the payment
     const initRes = await fetch(`${NOTCHPAY_BASE}/payments/initialize`, {
       method: "POST",
       headers: {
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         amount: Number(amount),
         currency: "XAF",
-        email: "client@kingpronostics.com", // NotchPay requires an email; a generic one is fine for guest checkout
+        email: "client@kingpronostics.com",
         phone: payerPhone,
         reference: `kp-${Date.now()}`,
         description: "King Pronostics - Ticket du jour",
@@ -51,28 +51,9 @@ export default async function handler(req, res) {
       return res.status(initRes.status).json({ error: initData });
     }
 
-    const reference = initData.transaction.reference;
-
-    // Step 2: trigger the mobile money prompt on the client's phone
-    const processRes = await fetch(`${NOTCHPAY_BASE}/payments/${reference}`, {
-      method: "POST",
-      headers: {
-        Authorization: publicKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        channel: "cm.mtn", // use "cm.orange" for Orange Money later
-        account_number: payerPhone,
-      }),
-    });
-
-    const processData = await processRes.json();
-    if (!processRes.ok) {
-      return res.status(processRes.status).json({ error: processData });
-    }
-
     return res.status(200).json({
-      reference,
+      reference: initData.transaction.reference,
+      authorizationUrl: initData.authorization_url || initData.transaction.authorization_url,
       recipientName: process.env.RECIPIENT_NAME || "King Pronostics",
       status: "PENDING",
     });
