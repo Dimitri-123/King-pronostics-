@@ -1,12 +1,10 @@
-// Minimal service worker: enables "Add to Home Screen" / install prompt
-// and caches the app shell for fast repeat loads.
-const CACHE_NAME = "king-pronostics-v1";
-const APP_SHELL = ["/"];
+// Service worker: enables "Add to Home Screen" / install prompt.
+// Uses a network-first strategy so updates always reach visitors
+// immediately, instead of serving a stale cached version after each
+// deploy (which previously caused blank/broken pages after updates).
+const CACHE_NAME = "king-pronostics-v2";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
@@ -21,7 +19,14 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((networkResponse) => {
+        const clone = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
