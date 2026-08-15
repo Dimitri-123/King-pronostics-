@@ -7,7 +7,7 @@ import {
 import { TICKET_PRICE, RECEIVING_FEE } from "../data/mockData";
 
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || "change_me_before_launch";
-const SHARE_KEY = "kp_share_percent"; // your %, partner gets the rest
+const SHARE_KEY = "kp_share_percent";
 
 export default function Dashboard() {
   const { t, lang } = useLang();
@@ -59,6 +59,32 @@ export default function Dashboard() {
     });
   }
 
+  function compressImage(file, maxWidth = 1280, quality = 0.75) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return reject(new Error("Compression failed"));
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
   async function submitTicket(e) {
     e.preventDefault();
     setUploadError("");
@@ -67,14 +93,26 @@ export default function Dashboard() {
     if (ticketFile) {
       setUploading(true);
       try {
-        const base64 = await fileToBase64(ticketFile);
+        const compressed = await compressImage(ticketFile);
+        const base64 = await fileToBase64(compressed);
+
+        if (base64.length > 4_000_000) {
+          setUploading(false);
+          setUploadError(
+            lang === "fr"
+              ? "L'image reste trop lourde même après compression. Essaie une capture d'écran plus simple (pas de GIF)."
+              : "Image is still too large even after compression. Try a simpler screenshot (no GIFs)."
+          );
+          return;
+        }
+
         const res = await fetch("/api/upload-ticket", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            filename: ticketFile.name,
+            filename: compressed.name,
             base64,
-            contentType: ticketFile.type,
+            contentType: compressed.type,
           }),
         });
         const data = await res.json();
