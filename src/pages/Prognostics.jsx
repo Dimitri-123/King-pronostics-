@@ -11,7 +11,7 @@ export default function Prognostics() {
   const [adminList, setAdminList] = useState([]);
 
   useEffect(() => {
-    setAdminList(getPrognostics());
+    getPrognostics().then(setAdminList);
   }, []);
 
   const all = [...adminList, ...prognosticsToday];
