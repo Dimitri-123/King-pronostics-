@@ -21,6 +21,9 @@ export default function Dashboard() {
   const [sharePercent, setSharePercent] = useState(Number(localStorage.getItem(SHARE_KEY)) || 50);
 
   const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending" });
+  const [ticketFile, setTicketFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [prognoForm, setPrognoForm] = useState({ championship: "", teamA: "", teamB: "", prediction: "", expiresAt: "" });
 
   useEffect(() => {
@@ -47,11 +50,53 @@ export default function Dashboard() {
     setAuthed(false);
   }
 
-  function submitTicket(e) {
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function submitTicket(e) {
     e.preventDefault();
-    addTicketImage(ticketForm);
+    setUploadError("");
+
+    let imageUrl = null;
+    if (ticketFile) {
+      setUploading(true);
+      try {
+        const base64 = await fileToBase64(ticketFile);
+        const res = await fetch("/api/upload-ticket", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: ticketFile.name,
+            base64,
+            contentType: ticketFile.type,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+        imageUrl = data.url;
+      } catch (err) {
+        setUploading(false);
+        setUploadError(
+          lang === "fr"
+            ? "Échec de l'envoi de l'image. Vérifie que le stockage Blob est bien activé sur Vercel."
+            : "Image upload failed. Check that Blob storage is enabled on Vercel."
+        );
+        return;
+      }
+      setUploading(false);
+    }
+
+    addTicketImage({ ...ticketForm, imageUrl });
     setTickets(getTicketImages());
     setTicketForm({ caption: "", status: "pending" });
+    setTicketFile(null);
+    e.target.reset();
   }
 
   function submitPrognostic(e) {
@@ -100,7 +145,6 @@ export default function Dashboard() {
         <button onClick={logout} className="btn btn-ghost">{t.dashboard.logout}</button>
       </div>
 
-      {/* Revenue split */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: 32 }}>
         <StatCard label={t.dashboard.revenueToday} value={`${revenueToday.toLocaleString()} FCFA`} />
         <StatCard label={t.dashboard.clientsToday} value={payments.length} />
@@ -124,7 +168,6 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Upload sections */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 32 }} className="dash-grid">
         <form onSubmit={submitTicket} className="card" style={{ padding: 20 }}>
           <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t.dashboard.uploadTicket}</h3>
@@ -143,13 +186,20 @@ export default function Dashboard() {
             <option value="won">{t.gallery.statusWon}</option>
             <option value="waiting">{t.gallery.statusWaiting}</option>
           </select>
-          <input type="file" accept="image/*" style={{ marginTop: 8 }} />
-          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>
-            {lang === "fr"
-              ? "Note: le stockage d'images nécessite un service comme Cloudinary ou Vercel Blob — à connecter avant le lancement."
-              : "Note: image storage needs a service like Cloudinary or Vercel Blob — connect before launch."}
-          </p>
-          <button type="submit" className="btn btn-primary" style={{ marginTop: 10 }}>{t.dashboard.publish}</button>
+          <input type="file" accept="image/*" style={{ marginTop: 8 }}
+            onChange={(e) => setTicketFile(e.target.files?.[0] || null)}
+          />
+          {uploading && (
+            <p style={{ fontSize: 12.5, color: "var(--forest)", marginTop: 6 }}>
+              {lang === "fr" ? "Envoi de l'image en cours…" : "Uploading image…"}
+            </p>
+          )}
+          {uploadError && (
+            <p style={{ fontSize: 12.5, color: "var(--danger)", marginTop: 6 }}>{uploadError}</p>
+          )}
+          <button type="submit" className="btn btn-primary" style={{ marginTop: 10 }} disabled={uploading}>
+            {uploading ? "…" : t.dashboard.publish}
+          </button>
         </form>
 
         <form onSubmit={submitPrognostic} className="card" style={{ padding: 20 }}>
@@ -173,7 +223,6 @@ export default function Dashboard() {
         </form>
       </div>
 
-      {/* Payments list */}
       <div className="card" style={{ padding: 20 }}>
         <h3 style={{ fontSize: 16, marginBottom: 12 }}>{t.dashboard.recentPayments}</h3>
         {payments.length === 0 && (
