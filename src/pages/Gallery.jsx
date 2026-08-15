@@ -9,7 +9,7 @@ export default function Gallery() {
   const [uploaded, setUploaded] = useState([]);
 
   useEffect(() => {
-    setUploaded(getTicketImages());
+    getTicketImages().then(setUploaded);
   }, []);
 
   const all = [...uploaded, ...ticketGallery];
