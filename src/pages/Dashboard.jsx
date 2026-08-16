@@ -3,11 +3,11 @@ import { useLang } from "../context/LangContext";
 import {
   getPayments, addTicketImage, getTicketImages,
   addPrognostic, getPrognostics,
+  getSettings, setSharePercent as saveSharePercent,
 } from "../lib/store";
 import { TICKET_PRICE, RECEIVING_FEE } from "../data/mockData";
 
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || "change_me_before_launch";
-const SHARE_KEY = "kp_share_percent";
 
 export default function Dashboard() {
   const { t, lang } = useLang();
@@ -18,7 +18,8 @@ export default function Dashboard() {
   const [payments, setPayments] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [prognostics, setPrognostics] = useState([]);
-  const [sharePercent, setSharePercent] = useState(Number(localStorage.getItem(SHARE_KEY)) || 50);
+  const [sharePercent, setSharePercent] = useState(50);
+  const [loading, setLoading] = useState(true);
 
   const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending" });
   const [ticketFile, setTicketFile] = useState(null);
@@ -26,12 +27,20 @@ export default function Dashboard() {
   const [uploadError, setUploadError] = useState("");
   const [prognoForm, setPrognoForm] = useState({ championship: "", teamA: "", teamB: "", prediction: "", expiresAt: "" });
 
+  async function refreshAll() {
+    setLoading(true);
+    const [p, tk, pg, settings] = await Promise.all([
+      getPayments(), getTicketImages(), getPrognostics(), getSettings(),
+    ]);
+    setPayments(p);
+    setTickets(tk);
+    setPrognostics(pg);
+    setSharePercent(settings.sharePercent ?? 50);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    if (authed) {
-      setPayments(getPayments());
-      setTickets(getTicketImages());
-      setPrognostics(getPrognostics());
-    }
+    if (authed) refreshAll();
   }, [authed]);
 
   function handleLogin(e) {
@@ -130,23 +139,23 @@ export default function Dashboard() {
       setUploading(false);
     }
 
-    addTicketImage({ ...ticketForm, imageUrl });
-    setTickets(getTicketImages());
+    await addTicketImage({ ...ticketForm, imageUrl });
+    setTickets(await getTicketImages());
     setTicketForm({ caption: "", status: "pending" });
     setTicketFile(null);
     e.target.reset();
   }
 
-  function submitPrognostic(e) {
+  async function submitPrognostic(e) {
     e.preventDefault();
-    addPrognostic(prognoForm);
-    setPrognostics(getPrognostics());
+    await addPrognostic(prognoForm);
+    setPrognostics(await getPrognostics());
     setPrognoForm({ championship: "", teamA: "", teamB: "", prediction: "", expiresAt: "" });
   }
 
-  function updateShare(v) {
+  async function updateShare(v) {
     setSharePercent(v);
-    localStorage.setItem(SHARE_KEY, String(v));
+    await saveSharePercent(v);
   }
 
   if (!authed) {
@@ -168,6 +177,14 @@ export default function Dashboard() {
             </button>
           </form>
         </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="container" style={{ padding: "80px 24px", textAlign: "center" }}>
+        <div className="spinner" />
       </div>
     );
   }
@@ -201,8 +218,8 @@ export default function Dashboard() {
         />
         <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
           {lang === "fr"
-            ? "Ce pourcentage est calculé automatiquement à chaque paiement — aucune modification manuelle possible sur les montants déjà enregistrés."
-            : "This percentage is applied automatically to every payment — recorded amounts cannot be edited manually."}
+            ? "Ce pourcentage est maintenant partagé entre tous les appareils — toi et Kelvin voyez toujours la même valeur."
+            : "This percentage is now shared across devices — you and Kelvin always see the same value."}
         </p>
       </div>
 
