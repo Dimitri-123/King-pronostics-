@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLang } from "../context/LangContext";
 import {
-  getPayments, addTicketImage, getTicketImages,
-  addPrognostic, getPrognostics,
+  getPayments, addTicketImage, getTicketImages, deleteTicketImage,
+  addPrognostic, getPrognostics, deletePrognostic,
   getSettings, setSharePercent as saveSharePercent,
 } from "../lib/store";
 import { TICKET_PRICE, RECEIVING_FEE } from "../data/mockData";
@@ -21,11 +21,15 @@ export default function Dashboard() {
   const [sharePercent, setSharePercent] = useState(50);
   const [loading, setLoading] = useState(true);
 
-  const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending" });
+  const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending", isFree: false });
   const [ticketFile, setTicketFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
-  const [prognoForm, setPrognoForm] = useState({ championship: "", teamA: "", teamB: "", prediction: "", expiresAt: "" });
+  const [prognoForm, setPrognoForm] = useState({ championship: "", teamA: "", teamB: "", prediction: "", expiresAt: "", isFree: false });
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
+  const [notifStatus, setNotifStatus] = useState("");
+  const [sendingNotif, setSendingNotif] = useState(false);
 
   async function refreshAll() {
     setLoading(true);
@@ -45,11 +49,24 @@ export default function Dashboard() {
 
   function handleLogin(e) {
     e.preventDefault();
+
+    const lockUntil = Number(localStorage.getItem("kp_login_lock_until") || 0);
+    if (Date.now() < lockUntil) return; // still locked, ignore submit
+
     if (password === ADMIN_PASSWORD) {
       sessionStorage.setItem("kp_admin_ok", "1");
+      localStorage.removeItem("kp_login_attempts");
+      localStorage.removeItem("kp_login_lock_until");
       setAuthed(true);
       setError(false);
     } else {
+      const attempts = Number(localStorage.getItem("kp_login_attempts") || 0) + 1;
+      localStorage.setItem("kp_login_attempts", String(attempts));
+      if (attempts >= 2) {
+        const until = Date.now() + 15 * 60 * 1000; // 15 minute lockout
+        localStorage.setItem("kp_login_lock_until", String(until));
+        localStorage.setItem("kp_login_attempts", "0");
+      }
       setError(true);
     }
   }
@@ -141,7 +158,7 @@ export default function Dashboard() {
 
     await addTicketImage({ ...ticketForm, imageUrl });
     setTickets(await getTicketImages());
-    setTicketForm({ caption: "", status: "pending" });
+    setTicketForm({ caption: "", status: "pending", isFree: false });
     setTicketFile(null);
     e.target.reset();
   }
@@ -150,7 +167,19 @@ export default function Dashboard() {
     e.preventDefault();
     await addPrognostic(prognoForm);
     setPrognostics(await getPrognostics());
-    setPrognoForm({ championship: "", teamA: "", teamB: "", prediction: "", expiresAt: "" });
+    setPrognoForm({ championship: "", teamA: "", teamB: "", prediction: "", expiresAt: "", isFree: false });
+  }
+
+  async function handleDeleteTicket(id) {
+    if (!confirm(lang === "fr" ? "Supprimer ce ticket ?" : "Delete this ticket?")) return;
+    await deleteTicketImage(id);
+    setTickets(await getTicketImages());
+  }
+
+  async function handleDeletePrognostic(id) {
+    if (!confirm(lang === "fr" ? "Supprimer ce pronostic ?" : "Delete this prediction?")) return;
+    await deletePrognostic(id);
+    setPrognostics(await getPrognostics());
   }
 
   async function updateShare(v) {
@@ -158,7 +187,36 @@ export default function Dashboard() {
     await saveSharePercent(v);
   }
 
+  async function sendNotification(e) {
+    e.preventDefault();
+    setSendingNotif(true);
+    setNotifStatus("");
+    try {
+      const res = await fetch("/api/send-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: notifTitle, body: notifBody }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setNotifStatus(
+        lang === "fr"
+          ? `Envoyé à ${data.sent} sur ${data.total} abonnés.`
+          : `Sent to ${data.sent} of ${data.total} subscribers.`
+      );
+      setNotifTitle("");
+      setNotifBody("");
+    } catch {
+      setNotifStatus(lang === "fr" ? "Échec de l'envoi." : "Failed to send.");
+    }
+    setSendingNotif(false);
+  }
+
   if (!authed) {
+    const lockUntil = Number(localStorage.getItem("kp_login_lock_until") || 0);
+    const isLocked = Date.now() < lockUntil;
+    const minutesLeft = Math.ceil((lockUntil - Date.now()) / 60000);
+
     return (
       <div className="container" style={{ padding: "80px 24px", maxWidth: 380 }}>
         <div className="card" style={{ padding: 28 }}>
@@ -168,11 +226,19 @@ export default function Dashboard() {
             <input
               type="password"
               value={password}
+              disabled={isLocked}
               onChange={(e) => setPassword(e.target.value)}
               style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid var(--line)", marginTop: 6 }}
             />
-            {error && <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 6 }}>{t.dashboard.wrongPassword}</p>}
-            <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: 14 }}>
+            {error && !isLocked && <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 6 }}>{t.dashboard.wrongPassword}</p>}
+            {isLocked && (
+              <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 6 }}>
+                {lang === "fr"
+                  ? `Trop de tentatives. Réessaie dans ${minutesLeft} minute${minutesLeft > 1 ? "s" : ""}.`
+                  : `Too many attempts. Try again in ${minutesLeft} minute${minutesLeft > 1 ? "s" : ""}.`}
+              </p>
+            )}
+            <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: 14 }} disabled={isLocked}>
               {t.dashboard.login}
             </button>
           </form>
@@ -244,6 +310,11 @@ export default function Dashboard() {
           <input type="file" accept="image/*" style={{ marginTop: 8 }}
             onChange={(e) => setTicketFile(e.target.files?.[0] || null)}
           />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13 }}>
+            <input type="checkbox" checked={ticketForm.isFree}
+              onChange={(e) => setTicketForm({ ...ticketForm, isFree: e.target.checked })} />
+            {lang === "fr" ? "Ticket gratuit (visible dans la section Gratuit)" : "Free ticket (shown in Free section)"}
+          </label>
           {uploading && (
             <p style={{ fontSize: 12.5, color: "var(--forest)", marginTop: 6 }}>
               {lang === "fr" ? "Envoi de l'image en cours…" : "Uploading image…"}
@@ -269,12 +340,78 @@ export default function Dashboard() {
             onChange={(e) => setPrognoForm({ ...prognoForm, prediction: e.target.value })} style={fieldStyle} />
           <input placeholder={lang === "fr" ? "Heure limite (ex: 17:00)" : "Expires at"} value={prognoForm.expiresAt}
             onChange={(e) => setPrognoForm({ ...prognoForm, expiresAt: e.target.value })} style={fieldStyle} />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, marginBottom: 6, fontSize: 13 }}>
+            <input type="checkbox" checked={prognoForm.isFree}
+              onChange={(e) => setPrognoForm({ ...prognoForm, isFree: e.target.checked })} />
+            {lang === "fr" ? "Pronostic gratuit (débloqué directement, sans paiement)" : "Free prediction (unlocked directly, no payment)"}
+          </label>
           <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>
             {lang === "fr"
-              ? "Le pronostic saisi ici reste masqué publiquement jusqu'au paiement du client."
-              : "The prediction entered here stays hidden publicly until the client pays."}
+              ? "Le pronostic saisi ici reste masqué publiquement jusqu'au paiement du client (sauf si coché gratuit)."
+              : "The prediction entered here stays hidden publicly until the client pays (unless marked free)."}
           </p>
           <button type="submit" className="btn btn-primary" style={{ marginTop: 10 }}>{t.dashboard.publish}</button>
+        </form>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 32 }} className="dash-grid">
+        <div className="card" style={{ padding: 20 }}>
+          <h3 style={{ fontSize: 15, marginBottom: 10 }}>
+            {lang === "fr" ? "Tickets publiés" : "Published tickets"}
+          </h3>
+          {tickets.length === 0 && (
+            <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              {lang === "fr" ? "Aucun ticket pour l'instant." : "No tickets yet."}
+            </p>
+          )}
+          {tickets.map((tk) => (
+            <div key={tk.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+              <span>{tk.caption} {tk.isFree && "🎁"}</span>
+              <button onClick={() => handleDeleteTicket(tk.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 12, cursor: "pointer" }}>
+                {lang === "fr" ? "Supprimer" : "Delete"}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ padding: 20 }}>
+          <h3 style={{ fontSize: 15, marginBottom: 10 }}>
+            {lang === "fr" ? "Pronostics publiés" : "Published predictions"}
+          </h3>
+          {prognostics.length === 0 && (
+            <p style={{ fontSize: 12.5, color: "var(--muted)" }}>
+              {lang === "fr" ? "Aucun pronostic pour l'instant." : "No predictions yet."}
+            </p>
+          )}
+          {prognostics.map((pg) => (
+            <div key={pg.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+              <span>{pg.teamA} vs {pg.teamB} {pg.isFree && "🎁"}</span>
+              <button onClick={() => handleDeletePrognostic(pg.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 12, cursor: "pointer" }}>
+                {lang === "fr" ? "Supprimer" : "Delete"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 20, marginBottom: 32 }}>
+        <h3 style={{ fontSize: 16, marginBottom: 4 }}>
+          {lang === "fr" ? "📣 Envoyer une notification" : "📣 Send a notification"}
+        </h3>
+        <p style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>
+          {lang === "fr"
+            ? "Envoyée à tous les clients qui ont installé l'app ou activé les notifications — même si le site est fermé."
+            : "Sent to every client who installed the app or enabled notifications — even with the site closed."}
+        </p>
+        <form onSubmit={sendNotification}>
+          <input required placeholder={lang === "fr" ? "Titre (ex: Nouveau pronostic disponible !)" : "Title"}
+            value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} style={fieldStyle} />
+          <input required placeholder={lang === "fr" ? "Message (ex: Arsenal vs Chelsea débute à 17h)" : "Message"}
+            value={notifBody} onChange={(e) => setNotifBody(e.target.value)} style={fieldStyle} />
+          <button type="submit" className="btn btn-primary" disabled={sendingNotif}>
+            {sendingNotif ? "…" : (lang === "fr" ? "Envoyer à tous" : "Send to everyone")}
+          </button>
+          {notifStatus && <p style={{ fontSize: 12.5, color: "var(--forest)", marginTop: 8 }}>{notifStatus}</p>}
         </form>
       </div>
 

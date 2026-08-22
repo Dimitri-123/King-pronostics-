@@ -1,3 +1,7 @@
+// Vercel Serverless Function — shared settings, currently just the
+// revenue-split percentage, so it's the same for Dimitri and Kelvin
+// no matter which device edits it.
+
 import { kv } from "@vercel/kv";
 
 const KEY = "kp:settings";

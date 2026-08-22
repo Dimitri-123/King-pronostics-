@@ -8,6 +8,7 @@ import Gallery from "./pages/Gallery";
 import Prognostics from "./pages/Prognostics";
 import Testimonials from "./pages/Testimonials";
 import Dashboard from "./pages/Dashboard";
+import FreeTickets from "./pages/FreeTickets";
 import { useLang } from "./context/LangContext";
 
 function Footer() {
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/pronostics" element={<Prognostics />} />
           <Route path="/temoignages" element={<Testimonials />} />
           <Route path="/espace-prive" element={<Dashboard />} />
+          <Route path="/gratuit" element={<FreeTickets />} />
         </Routes>
         <Footer />
         <InstallPrompt />

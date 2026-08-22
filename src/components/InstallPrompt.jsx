@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLang } from "../context/LangContext";
+import { requestPushSubscription } from "../lib/push";
 
 export default function InstallPrompt() {
   const { t } = useLang();
@@ -25,6 +26,9 @@ export default function InstallPrompt() {
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     setVisible(false);
+    // Ask for notification permission right after install — a natural
+    // moment since the person just showed real intent to use the app.
+    requestPushSubscription();
   }
 
   function dismiss() {

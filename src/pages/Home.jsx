@@ -8,7 +8,7 @@ import PaymentModal from "../components/PaymentModal";
 import { ticketGallery } from "../data/mockData";
 
 export default function Home() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [showPayment, setShowPayment] = useState(false);
 
   return (
@@ -29,6 +29,9 @@ export default function Home() {
             <Link to="/pronostics" className="btn btn-ghost">
               {t.hero.ctaSecondary}
             </Link>
+            <Link to="/gratuit" className="btn btn-ghost" style={{ borderColor: "var(--forest)", color: "var(--forest)" }}>
+              🎁 {lang === "fr" ? "Ticket gratuit" : "Free ticket"}
+            </Link>
           </div>
         </div>
       </section>
@@ -40,7 +43,7 @@ export default function Home() {
         <p style={{ color: "var(--muted)", marginTop: 4, marginBottom: 22 }}>{t.gallery.subtitle}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
           {ticketGallery.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+            <TicketCard key={ticket.id} ticket={ticket} linkToGallery />
           ))}
         </div>
       </section>

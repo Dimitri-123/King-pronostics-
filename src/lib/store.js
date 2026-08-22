@@ -1,3 +1,8 @@
+// Shared data layer — talks to serverless API routes backed by Vercel KV,
+// so Dimitri and Kelvin (and every visitor) see the same live data no
+// matter which phone or computer they're on. Previously this used
+// localStorage, which only worked on a single device.
+
 async function getJSON(url) {
   try {
     const res = await fetch(url);
@@ -30,12 +35,20 @@ export async function addTicketImage(ticket) {
 export async function getTicketImages() {
   return getJSON("/api/tickets");
 }
+export async function deleteTicketImage(id) {
+  const res = await fetch(`/api/tickets?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  return res.json();
+}
 
 export async function addPrognostic(p) {
   return postJSON("/api/prognostics", p);
 }
 export async function getPrognostics() {
   return getJSON("/api/prognostics");
+}
+export async function deletePrognostic(id) {
+  const res = await fetch(`/api/prognostics?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  return res.json();
 }
 
 export async function getSettings() {
@@ -46,6 +59,8 @@ export async function setSharePercent(sharePercent) {
   return postJSON("/api/settings", { sharePercent });
 }
 
+// Client-submitted feedback messages stay local/private for now — low
+// priority since only the admin reads them, not a public-facing feature.
 const CONTACT_MESSAGES_KEY = "kp_contact_messages";
 export function addContactMessage(msg) {
   const list = JSON.parse(localStorage.getItem(CONTACT_MESSAGES_KEY) || "[]");

@@ -1,3 +1,7 @@
+// Vercel Serverless Function — shared payment history storage,
+// used by the private dashboard for both Dimitri and Kelvin to see the
+// same revenue numbers regardless of which device they're on.
+
 import { kv } from "@vercel/kv";
 
 const KEY = "kp:payments";

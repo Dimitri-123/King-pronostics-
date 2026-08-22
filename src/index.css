@@ -160,6 +160,16 @@ h1, h2, h3 {
   to { transform: translateX(-50%); }
 }
 
+.chat-scroll {
+  display: flex;
+  flex-direction: column;
+  animation: chatscroll 40s linear infinite;
+}
+@keyframes chatscroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
 @media (max-width: 720px) {
   .dash-grid { grid-template-columns: 1fr !important; }
 }

@@ -1,8 +1,7 @@
-// Service worker: enables "Add to Home Screen" / install prompt.
-// Uses a network-first strategy so updates always reach visitors
-// immediately, instead of serving a stale cached version after each
-// deploy (which previously caused blank/broken pages after updates).
-const CACHE_NAME = "king-pronostics-v2";
+// Service worker: enables "Add to Home Screen" / install prompt, uses a
+// network-first strategy so updates always reach visitors immediately,
+// and handles real push notifications sent from the admin dashboard.
+const CACHE_NAME = "king-pronostics-v3";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -28,5 +27,32 @@ self.addEventListener("fetch", (event) => {
         return networkResponse;
       })
       .catch(() => caches.match(event.request))
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let data = { title: "King Pronostics", body: "Nouveau contenu disponible !" };
+  try {
+    data = event.data.json();
+  } catch {
+    // fall back to default text above
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clientList) => {
+      if (clientList.length > 0) return clientList[0].focus();
+      return self.clients.openWindow("/");
+    })
   );
 });
