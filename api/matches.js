@@ -35,6 +35,9 @@ export default async function handler(req, res) {
     const matches = (json.response || []).slice(0, 15).map((f) => ({
       id: f.fixture.id,
       league: f.league.name,
+      leagueId: f.league.id,
+      homeId: f.teams.home.id,
+      awayId: f.teams.away.id,
       home: f.teams.home.name,
       away: f.teams.away.name,
       time: new Date(f.fixture.date).toLocaleTimeString("fr-FR", {

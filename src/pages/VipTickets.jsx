@@ -4,16 +4,13 @@ import TicketCard from "../components/TicketCard";
 import PaymentModal from "../components/PaymentModal";
 import { ticketGallery } from "../data/mockData";
 import { getTicketImages } from "../lib/store";
-
-function todayKey() {
-  return `kp_vip_unlocked_${new Date().toISOString().split("T")[0]}`;
-}
+import { isVipUnlockedToday, unlockVipToday } from "../lib/vip";
 
 export default function VipTickets() {
   const { lang } = useLang();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [unlocked, setUnlocked] = useState(!!localStorage.getItem(todayKey()));
+  const [unlocked, setUnlocked] = useState(isVipUnlockedToday());
   const [showPayment, setShowPayment] = useState(false);
 
   useEffect(() => {
@@ -26,9 +23,7 @@ export default function VipTickets() {
 
   function handlePaymentClose() {
     setShowPayment(false);
-    // If the payment succeeded, PaymentModal's own success screen already
-    // showed — we just check again here in case it did.
-    if (localStorage.getItem(todayKey())) {
+    if (isVipUnlockedToday()) {
       setUnlocked(true);
     }
   }
@@ -71,7 +66,7 @@ export default function VipTickets() {
           onClose={handlePaymentClose}
           itemLabel={lang === "fr" ? "Ticket VIP du jour" : "Today's VIP ticket"}
           onSuccess={() => {
-            localStorage.setItem(todayKey(), "1");
+            unlockVipToday();
             setUnlocked(true);
           }}
         />
