@@ -21,7 +21,7 @@ export default function Dashboard() {
   const [sharePercent, setSharePercent] = useState(50);
   const [loading, setLoading] = useState(true);
 
-  const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending", isFree: false });
+  const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending", isFree: false, previewInfo: "" });
   const [ticketFile, setTicketFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -158,7 +158,7 @@ export default function Dashboard() {
 
     await addTicketImage({ ...ticketForm, imageUrl });
     setTickets(await getTicketImages());
-    setTicketForm({ caption: "", status: "pending", isFree: false });
+    setTicketForm({ caption: "", status: "pending", isFree: false, previewInfo: "" });
     setTicketFile(null);
     e.target.reset();
   }
@@ -298,6 +298,17 @@ export default function Dashboard() {
             onChange={(e) => setTicketForm({ ...ticketForm, caption: e.target.value })}
             style={fieldStyle}
           />
+          <input
+            placeholder={lang === "fr" ? "Aperçu VIP (ex: Combiné 3 matchs · cote totale 4.5)" : "VIP preview (e.g. 3-match combo · total odds 4.5)"}
+            value={ticketForm.previewInfo}
+            onChange={(e) => setTicketForm({ ...ticketForm, previewInfo: e.target.value })}
+            style={fieldStyle}
+          />
+          <p style={{ fontSize: 11, color: "var(--muted)", marginTop: -4, marginBottom: 8 }}>
+            {lang === "fr"
+              ? "Affiché en clair par-dessus l'image floutée sur la page VIP, pour donner envie sans tout montrer."
+              : "Shown clearly over the blurred image on the VIP page, to entice without revealing everything."}
+          </p>
           <select
             value={ticketForm.status}
             onChange={(e) => setTicketForm({ ...ticketForm, status: e.target.value })}

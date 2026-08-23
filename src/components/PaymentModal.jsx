@@ -5,7 +5,7 @@ import { recordPayment } from "../lib/store";
 
 const STEPS = { FORM: "form", CONFIRM: "confirm", PROCESSING: "processing", CHECKOUT: "checkout", DONE: "done", ERROR: "error" };
 
-export default function PaymentModal({ onClose, itemLabel }) {
+export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
   const { t } = useLang();
   const [step, setStep] = useState(STEPS.FORM);
   const [phone, setPhone] = useState("");
@@ -50,6 +50,7 @@ export default function PaymentModal({ onClose, itemLabel }) {
             clearInterval(poll);
             recordPayment({ phone, amount: total, item: itemLabel, date: new Date().toISOString() });
             setStep(STEPS.DONE);
+            if (onSuccess) onSuccess();
           } else if (vData.status === "FAILED" || attempts > 60) {
             clearInterval(poll);
             setStep(STEPS.ERROR);

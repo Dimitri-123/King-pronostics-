@@ -9,6 +9,7 @@ import Prognostics from "./pages/Prognostics";
 import Testimonials from "./pages/Testimonials";
 import Dashboard from "./pages/Dashboard";
 import FreeTickets from "./pages/FreeTickets";
+import VipTickets from "./pages/VipTickets";
 import { useLang } from "./context/LangContext";
 
 function Footer() {
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/temoignages" element={<Testimonials />} />
           <Route path="/espace-prive" element={<Dashboard />} />
           <Route path="/gratuit" element={<FreeTickets />} />
+          <Route path="/vip" element={<VipTickets />} />
         </Routes>
         <Footer />
         <InstallPrompt />
