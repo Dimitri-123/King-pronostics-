@@ -45,7 +45,7 @@ export default function Matches() {
     const leagueId = KNOWN_LEAGUES[standingsLeague];
     if (!leagueId) return;
     setStandingsLoading(true);
-    fetch(`/api/standings?league=${leagueId}`)
+    fetch(`/api/football?type=standings&league=${leagueId}`)
       .then((r) => r.json())
       .then((data) => setStandings(data.standings))
       .catch(() => setStandings(null))
@@ -65,14 +65,14 @@ export default function Matches() {
     if (!isReal) return;
 
     const [oddsRes, squadHomeRes, squadAwayRes] = await Promise.all([
-      fetch(`/api/odds?fixture=${match.id}`).then((r) => r.json()).catch(() => ({ odds: null })),
-      fetch(`/api/squad?team=${match.homeId}`).then((r) => r.json()).catch(() => ({ squad: null })),
-      fetch(`/api/squad?team=${match.awayId}`).then((r) => r.json()).catch(() => ({ squad: null })),
+      fetch(`/api/football?type=odds&fixture=${match.id}`).then((r) => r.json()).catch(() => ({ odds: null })),
+      fetch(`/api/football?type=squad&team=${match.homeId}`).then((r) => r.json()).catch(() => ({ squad: null })),
+      fetch(`/api/football?type=squad&team=${match.awayId}`).then((r) => r.json()).catch(() => ({ squad: null })),
     ]);
 
     let prediction = null;
     if (isVipUnlockedToday()) {
-      const predRes = await fetch(`/api/predictions?fixture=${match.id}`).then((r) => r.json()).catch(() => ({ prediction: null }));
+      const predRes = await fetch(`/api/football?type=predictions&fixture=${match.id}`).then((r) => r.json()).catch(() => ({ prediction: null }));
       prediction = predRes.prediction;
     }
 
@@ -83,7 +83,7 @@ export default function Matches() {
   }
 
   async function loadPredictionAfterUnlock(matchId) {
-    const predRes = await fetch(`/api/predictions?fixture=${matchId}`).then((r) => r.json()).catch(() => ({ prediction: null }));
+    const predRes = await fetch(`/api/football?type=predictions&fixture=${matchId}`).then((r) => r.json()).catch(() => ({ prediction: null }));
     setAnalysisCache((prev) => ({
       ...prev,
       [matchId]: { ...(prev[matchId] || {}), prediction: predRes.prediction },
