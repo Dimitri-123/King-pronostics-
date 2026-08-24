@@ -4,6 +4,7 @@
 // (no VITE_ prefix — this key now stays server-side only, which is also safer).
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
   const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
   const RAPIDAPI_HOST = "api-football-v1.p.rapidapi.com";
 
