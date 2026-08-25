@@ -4,15 +4,11 @@
 export async function fetchTodayFixtures() {
   try {
     const res = await fetch("/api/matches");
-    if (!res.ok) return null;
+    if (!res.ok) return { matches: [], reason: `http_${res.status}` };
     const data = await res.json();
-    if (!data.matches || data.matches.length === 0) {
-      if (data.reason) console.warn("Fixtures unavailable:", data.reason);
-      return null;
-    }
-    return data.matches;
+    return { matches: data.matches || [], reason: data.reason || null };
   } catch (err) {
     console.error("fetchTodayFixtures failed", err);
-    return null;
+    return { matches: [], reason: "exception" };
   }
 }

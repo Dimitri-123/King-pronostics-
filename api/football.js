@@ -1,32 +1,18 @@
-// Vercel Serverless Function — consolidates standings, predictions, squad,
-// and odds into ONE function (instead of 4 separate files). Vercel's free
-// Hobby plan caps deployments at 12 serverless functions total, so combining
-// related endpoints like this keeps us under that limit.
+// Vercel Serverless Function — consolidates standings and predictions into
+// ONE function (Vercel's free Hobby plan caps deployments at 12 serverless
+// functions total, so combining endpoints like this keeps us under that).
 //
-// Usage: /api/football?type=standings&league=39
-//        /api/football?type=predictions&fixture=12345
-//        /api/football?type=squad&team=50
-//        /api/football?type=odds&fixture=12345
+// - "standings" uses "Free API Live Football Data" (same RAPIDAPI_KEY as matches.js)
+// - "predictions" uses "Today Football Prediction" (same RAPIDAPI_KEY, different host)
+//   This is the PAID feature — only called by the frontend after VIP unlock.
+//
+// Usage: /api/football?type=standings&league=47
+//        /api/football?type=predictions
 
 import { kv } from "@vercel/kv";
 
-const RAPIDAPI_HOST = "api-football-v1.p.rapidapi.com";
-
-function currentSeason() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  return month >= 7 ? year : year - 1;
-}
-
-async function callApiFootball(path, key) {
-  const res = await fetch(`https://${RAPIDAPI_HOST}${path}`, {
-    headers: { "x-rapidapi-key": key, "x-rapidapi-host": RAPIDAPI_HOST },
-  });
-  if (!res.ok) return { ok: false, status: res.status };
-  const json = await res.json();
-  return { ok: true, json };
-}
+const STANDINGS_HOST = "free-api-live-football-data.p.rapidapi.com";
+const PREDICTIONS_HOST = "today-football-prediction.p.rapidapi.com";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, max-age=0");
@@ -43,101 +29,67 @@ export default async function handler(req, res) {
       const { league } = req.query;
       if (!league) return res.status(400).json({ error: "Missing league" });
 
-      const season = currentSeason();
-      const cacheKey = `kp:standings:${league}:${season}`;
+      const cacheKey = `kp:standings:${league}`;
       const cached = await kv.get(cacheKey);
       if (cached) return res.status(200).json({ standings: cached, cached: true });
 
-      const { ok, json, status } = await callApiFootball(`/v3/standings?league=${league}&season=${season}`, RAPIDAPI_KEY);
-      if (!ok) return res.status(200).json({ standings: null, reason: `api_error_${status}` });
+      const apiRes = await fetch(
+        `https://${STANDINGS_HOST}/football-get-standing-all?leagueid=${league}`,
+        { headers: { "x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": STANDINGS_HOST } }
+      );
 
-      const table = json.response?.[0]?.league?.standings?.[0] || null;
-      if (!table) return res.status(200).json({ standings: null, reason: "empty" });
+      if (!apiRes.ok) return res.status(200).json({ standings: null, reason: `api_error_${apiRes.status}` });
 
-      const simplified = table.map((row) => ({
-        rank: row.rank, team: row.team.name, logo: row.team.logo,
-        played: row.all.played, win: row.all.win, draw: row.all.draw, lose: row.all.lose,
-        points: row.points, goalsDiff: row.goalsDiff,
+      const json = await apiRes.json();
+      const rows = json.response?.standings || [];
+      if (!rows.length) return res.status(200).json({ standings: null, reason: "empty" });
+
+      const simplified = rows.map((row) => ({
+        rank: row.idx,
+        team: row.name,
+        played: row.played,
+        win: row.wins,
+        draw: row.draws,
+        lose: row.losses,
+        points: row.pts,
+        goalsDiff: row.goalsDiff,
       }));
 
       await kv.set(cacheKey, simplified, { ex: 6 * 60 * 60 });
       return res.status(200).json({ standings: simplified, cached: false });
     }
 
-    // ---------- PREDICTIONS (paid feature, cache 2h) ----------
+    // ---------- PREDICTIONS (paid feature, cache 1h) ----------
     if (type === "predictions") {
-      const { fixture } = req.query;
-      if (!fixture) return res.status(400).json({ error: "Missing fixture" });
-
-      const cacheKey = `kp:prediction:${fixture}`;
+      const cacheKey = "kp:predictions:today";
       const cached = await kv.get(cacheKey);
-      if (cached) return res.status(200).json({ prediction: cached, cached: true });
+      if (cached) return res.status(200).json({ predictions: cached, cached: true });
 
-      const { ok, json, status } = await callApiFootball(`/v3/predictions?fixture=${fixture}`, RAPIDAPI_KEY);
-      if (!ok) return res.status(200).json({ prediction: null, reason: `api_error_${status}` });
+      const apiRes = await fetch(
+        `https://${PREDICTIONS_HOST}/predictions/list?page=1`,
+        { headers: { "x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": PREDICTIONS_HOST } }
+      );
 
-      const data = json.response?.[0];
-      if (!data) return res.status(200).json({ prediction: null, reason: "empty" });
+      if (!apiRes.ok) return res.status(200).json({ predictions: null, reason: `api_error_${apiRes.status}` });
 
-      const simplified = {
-        advice: data.predictions?.advice || null,
-        winnerName: data.predictions?.winner?.name || null,
-        winnerComment: data.predictions?.winner?.comment || null,
-        winPercentHome: data.predictions?.percent?.home || null,
-        winPercentDraw: data.predictions?.percent?.draw || null,
-        winPercentAway: data.predictions?.percent?.away || null,
-        goalsOverUnder: data.predictions?.under_over || null,
-      };
+      const json = await apiRes.json();
+      const rows = json.matches || [];
 
-      await kv.set(cacheKey, simplified, { ex: 2 * 60 * 60 });
-      return res.status(200).json({ prediction: simplified, cached: false });
-    }
-
-    // ---------- SQUAD (cache 24h) ----------
-    if (type === "squad") {
-      const { team } = req.query;
-      if (!team) return res.status(400).json({ error: "Missing team" });
-
-      const cacheKey = `kp:squad:${team}`;
-      const cached = await kv.get(cacheKey);
-      if (cached) return res.status(200).json({ squad: cached, cached: true });
-
-      const { ok, json, status } = await callApiFootball(`/v3/players/squads?team=${team}`, RAPIDAPI_KEY);
-      if (!ok) return res.status(200).json({ squad: null, reason: `api_error_${status}` });
-
-      const players = json.response?.[0]?.players || [];
-      const simplified = players.slice(0, 8).map((p) => ({
-        name: p.name, age: p.age, position: p.position, photo: p.photo,
+      const simplified = rows.slice(0, 30).map((m) => ({
+        id: m.id,
+        home: m.home_team,
+        away: m.away_team,
+        date: m.date,
+        prediction: m.prediction,
+        odd: m.prediction_odd,
+        probability: m.prediction_probability,
+        finished: m.is_finished,
+        resultScore: m.result_score || null,
+        wasCorrect: m.is_prediction_correct ?? null,
       }));
 
-      await kv.set(cacheKey, simplified, { ex: 24 * 60 * 60 });
-      return res.status(200).json({ squad: simplified, cached: false });
-    }
-
-    // ---------- ODDS (often unavailable on free plan, cache 3h if present) ----------
-    if (type === "odds") {
-      const { fixture } = req.query;
-      if (!fixture) return res.status(400).json({ error: "Missing fixture" });
-
-      const cacheKey = `kp:odds:${fixture}`;
-      const cached = await kv.get(cacheKey);
-      if (cached) return res.status(200).json({ odds: cached, cached: true });
-
-      const { ok, json, status } = await callApiFootball(`/v3/odds?fixture=${fixture}`, RAPIDAPI_KEY);
-      if (!ok) return res.status(200).json({ odds: null, reason: `api_error_${status}` });
-
-      const bookmaker = json.response?.[0]?.bookmakers?.[0];
-      const matchWinnerBet = bookmaker?.bets?.find((b) => b.name === "Match Winner");
-      if (!matchWinnerBet) return res.status(200).json({ odds: null, reason: "unavailable_on_plan" });
-
-      const simplified = {
-        home: matchWinnerBet.values.find((v) => v.value === "Home")?.odd || null,
-        draw: matchWinnerBet.values.find((v) => v.value === "Draw")?.odd || null,
-        away: matchWinnerBet.values.find((v) => v.value === "Away")?.odd || null,
-      };
-
-      await kv.set(cacheKey, simplified, { ex: 3 * 60 * 60 });
-      return res.status(200).json({ odds: simplified, cached: false });
+      await kv.set(cacheKey, simplified, { ex: 60 * 60 });
+      return res.status(200).json({ predictions: simplified, cached: false });
     }
 
     return res.status(400).json({ error: "Unknown type" });
