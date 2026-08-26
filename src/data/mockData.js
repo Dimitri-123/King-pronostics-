@@ -9,10 +9,35 @@ export const matchesToday = [
   { id: 5, league: "Bundesliga", home: "Bayern", away: "Dortmund", time: "18:30", oddHome: 1.5, oddDraw: 4.5, oddAway: 6.0 },
 ];
 
+// "rating" is out of 10, shown as a score + progress bar.
+// "tags" are short trust badges shown under the bonus box.
+// "highlight: true" marks the #1 pick with the gold outline treatment.
 export const promoCodes = [
-  { platform: "1xBet", code: "KING1X", bonus: "100% jusqu'à 50 000 FCFA", url: "https://1xbet.com" },
-  { platform: "Melbet", code: "KINGMB", bonus: "100% jusqu'à 40 000 FCFA", url: "https://melbet.com" },
-  { platform: "BetPawa", code: "—", bonus: "Pari gratuit à l'inscription", url: "https://betpawa.cm" },
+  {
+    platform: "1xBet",
+    rating: 9.5,
+    code: "KING1X",
+    bonus: "100% jusqu'à 50 000 FCFA",
+    url: "https://1xbet.com",
+    tags: ["Validé par notre équipe", "Offre en cours", "Sélection King Pronostics"],
+    highlight: true,
+  },
+  {
+    platform: "Melbet",
+    rating: 9.0,
+    code: "KINGMB",
+    bonus: "100% jusqu'à 40 000 FCFA",
+    url: "https://melbet.com",
+    tags: ["Validé par notre équipe", "Offre en cours", "Sélection King Pronostics"],
+  },
+  {
+    platform: "BetPawa",
+    rating: 8.5,
+    code: null,
+    bonus: "Pari gratuit à l'inscription",
+    url: "https://betpawa.cm",
+    tags: ["Validé par notre équipe", "Offre en cours"],
+  },
 ];
 
 export const ticketGallery = [
