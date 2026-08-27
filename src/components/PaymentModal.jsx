@@ -57,7 +57,7 @@ export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
       const poll = setInterval(async () => {
         attempts += 1;
         try {
-          const vRes = await fetch(`/api/verify-payment?reference=${data.reference}`);
+          const vRes = await fetch(`/api/verify-payment?reference=${data.reference}&t=${Date.now()}`, { cache: "no-store" });
           const vData = await vRes.json();
           if (vData.status === "SUCCESSFUL") {
             clearInterval(poll);
