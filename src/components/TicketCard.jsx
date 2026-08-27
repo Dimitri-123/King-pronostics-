@@ -21,7 +21,11 @@ export default function TicketCard({ ticket, linkToGallery = false, neverBlur = 
   const { t } = useLang();
   const [zoomed, setZoomed] = useState(false);
   const s = statusMap[ticket.status] || statusMap.pending;
-  const shouldBlur = forceBlur ? true : neverBlur ? false : ticket.status === "waiting";
+  // A validated ("won") ticket is always shown clearly — proof of a real
+  // result, same as on the public Galerie page — regardless of whether the
+  // visitor has paid for today's VIP ticket. Pending/waiting tickets keep
+  // the existing forceBlur/neverBlur behavior untouched.
+  const shouldBlur = ticket.status === "won" ? false : forceBlur ? true : neverBlur ? false : ticket.status === "waiting";
 
   function handleImageClick(e) {
     if (onCardClick) return; // card-level click handles it instead
