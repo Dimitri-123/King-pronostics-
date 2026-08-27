@@ -30,6 +30,16 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Payment provider not configured" });
     }
 
+    // Normalize to the full Cameroon international format (237XXXXXXXXX).
+    // Mobile money operators need this to route the USSD prompt correctly —
+    // a local 9-digit number ("670000000") without the country code can
+    // silently fail to trigger any prompt at all, which matches the "stuck
+    // on Payment in Progress forever" symptom reported on 27/08/2026.
+    const digitsOnly = payerPhone.replace(/\D/g, "");
+    const normalizedPhone = digitsOnly.startsWith("237")
+      ? digitsOnly
+      : `237${digitsOnly.replace(/^0+/, "")}`;
+
     const initRes = await fetch(`${NOTCHPAY_BASE}/payments/initialize`, {
       method: "POST",
       headers: {
@@ -40,7 +50,7 @@ export default async function handler(req, res) {
         amount: Number(amount),
         currency: "XAF",
         email: "client@kingpronostics.com",
-        phone: payerPhone,
+        phone: normalizedPhone,
         reference: `kp-${Date.now()}`,
         description: "King Pronostics - Ticket du jour",
       }),
