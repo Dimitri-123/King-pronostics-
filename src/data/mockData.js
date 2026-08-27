@@ -1,13 +1,7 @@
-// Placeholder data. Replace matches[] with a live API-Football fetch
-// (see src/lib/footballApi.js) once your RapidAPI key is wired up.
-
-export const matchesToday = [
-  { id: 1, league: "Premier League", home: "Arsenal", away: "Chelsea", time: "17:00", oddHome: 2.1, oddDraw: 3.4, oddAway: 3.2 },
-  { id: 2, league: "Ligue 1", home: "PSG", away: "Marseille", time: "20:00", oddHome: 1.6, oddDraw: 4.0, oddAway: 5.5 },
-  { id: 3, league: "Liga", home: "Real Madrid", away: "Sevilla", time: "21:00", oddHome: 1.4, oddDraw: 4.8, oddAway: 7.0 },
-  { id: 4, league: "Serie A", home: "Inter", away: "Juventus", time: "19:45", oddHome: 2.3, oddDraw: 3.2, oddAway: 3.0 },
-  { id: 5, league: "Bundesliga", home: "Bayern", away: "Dortmund", time: "18:30", oddHome: 1.5, oddDraw: 4.5, oddAway: 6.0 },
-];
+// matchesToday and prognosticsToday used to live here as placeholder data.
+// Both are now generated live from the real "Matchs populaires du jour"
+// feed (see api/matches.js + src/pages/Matches.jsx and Prognostics.jsx) —
+// no more fake teams/success rates to keep in sync by hand.
 
 // "rating" is out of 10, shown as a score + progress bar.
 // "badgeBg"/"badgeColor" style the brand chip (no logo images used — this
@@ -156,29 +150,6 @@ export const ticketGallery = [
   { id: "g2", status: "pending", caption: "Ticket du soir — en cours", timestamp: "Aujourd'hui, 12:40", imageUrl: null },
   { id: "g3", status: "won", caption: "Simple Real Madrid — validé", timestamp: "Hier, 22:10", imageUrl: null },
   { id: "g4", status: "waiting", caption: "Ticket de demain — en attente", timestamp: "Aujourd'hui, 09:15", imageUrl: null },
-];
-
-export const prognosticsToday = [
-  {
-    id: "p1",
-    championship: "Premier League",
-    teamA: "Arsenal",
-    teamB: "Chelsea",
-    successRate: 87,
-    buyers: 63,
-    expiresAt: "17:00",
-    isNew: true,
-  },
-  {
-    id: "p2",
-    championship: "Liga",
-    teamA: "Real Madrid",
-    teamB: "Sevilla",
-    successRate: 91,
-    buyers: 41,
-    expiresAt: "21:00",
-    isNew: false,
-  },
 ];
 
 export const TICKET_PRICE = 2000;

@@ -70,8 +70,8 @@ export default function Matches() {
           />
           <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -8, marginBottom: 18 }}>
             {lang === "fr"
-              ? "Premier League, Liga, Serie A, Bundesliga, Ligue 1, C1 et C3 — cotes 1N2 fournies par Bet365 à titre indicatif."
-              : "Premier League, Liga, Serie A, Bundesliga, Ligue 1, UCL and UEL — 1X2 odds shown are from Bet365 and for reference only."}
+              ? "Premier League, Liga, Serie A, Bundesliga, Ligue 1, C1 et C3 — cotes 1N2 en FCFA fournies par Melbet, à titre indicatif."
+              : "Premier League, Liga, Serie A, Bundesliga, Ligue 1, UCL and UEL — 1X2 odds shown are from Melbet (in FCFA) and for reference only."}
           </p>
 
           {matchesLoading && <SpinnerRow />}
@@ -89,10 +89,26 @@ export default function Matches() {
               {matches.map((m) => (
                 <div key={m.id} className="card" style={{ padding: 16 }}>
                   {m.league && (
-                    <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--gold)", fontWeight: 700, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
-                      <span>{m.league}</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {m.leagueLogo && (
+                          <span
+                            style={{
+                              width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                              background: "var(--forest-deep)",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <img src={m.leagueLogo} alt="" style={{ width: 12, height: 12, objectFit: "contain" }} onError={(e) => (e.target.style.display = "none")} />
+                          </span>
+                        )}
+                        <span style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--gold)", fontWeight: 700 }}>
+                          {m.league}
+                        </span>
+                      </div>
                       {m.dayLabel && m.dayLabel !== "today" && (
-                        <span style={{ color: "var(--muted)" }}>
+                        <span style={{ fontSize: 10.5, color: "var(--muted)" }}>
                           {m.dayLabel === "tomorrow" ? (lang === "fr" ? "Demain" : "Tomorrow") : m.dayLabel}
                         </span>
                       )}
@@ -107,13 +123,7 @@ export default function Matches() {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
                     <span style={{ fontSize: 12, color: "var(--muted)", fontFamily: "var(--font-mono)" }}>{m.time}</span>
-                    {m.finished ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--forest)", background: "var(--gold-soft)", padding: "3px 9px", borderRadius: 999 }}>
-                        {lang === "fr" ? "Terminé" : "Finished"}
-                      </span>
-                    ) : (
-                      <span className="status-dot status-pending" />
-                    )}
+                    <span className="status-dot status-pending" />
                   </div>
                   {m.odds && (
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
