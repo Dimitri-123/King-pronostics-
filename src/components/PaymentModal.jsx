@@ -22,20 +22,33 @@ export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
   async function handleConfirm() {
     setStep(STEPS.PROCESSING);
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
       const res = await fetch("/api/initiate-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payerPhone: phone, amount: total }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (!res.ok) throw new Error("init failed");
       const data = await res.json();
 
       // Show NotchPay's hosted payment page inside our own modal (iframe)
       // so the client never visually leaves the site.
-      if (data.authorizationUrl) {
+      if (data.authorizationUrl && data.reference) {
         setCheckoutUrl(data.authorizationUrl);
         setStep(STEPS.CHECKOUT);
+      } else {
+        // Previously this case fell through silently, leaving the modal
+        // stuck on "Traitement en cours" forever. Log the raw payload (visible
+        // in browser DevTools console) so we can see NotchPay's actual field
+        // names if this fires again, then fail loudly instead of hanging.
+        console.error("initiate-payment: missing authorizationUrl/reference in response", data);
+        setStep(STEPS.ERROR);
+        return;
       }
 
       // Poll verify-payment every 3s, up to ~3 minutes, while the client
@@ -55,12 +68,14 @@ export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
             clearInterval(poll);
             setStep(STEPS.ERROR);
           }
-        } catch {
+        } catch (pollErr) {
+          console.error("verify-payment polling error", pollErr);
           clearInterval(poll);
           setStep(STEPS.ERROR);
         }
       }, 3000);
-    } catch {
+    } catch (err) {
+      console.error("initiate-payment failed", err);
       setStep(STEPS.ERROR);
     }
   }

@@ -48,12 +48,25 @@ export default async function handler(req, res) {
 
     const initData = await initRes.json();
     if (!initRes.ok) {
+      console.error("NotchPay initialize error", initRes.status, initData);
       return res.status(initRes.status).json({ error: initData });
     }
 
+    // Log the raw response so we can confirm NotchPay's exact field names in
+    // Vercel -> Logs if the frontend ever reports a missing authorizationUrl.
+    console.log("NotchPay initialize response", JSON.stringify(initData));
+
+    const authorizationUrl = initData.authorization_url || initData.transaction?.authorization_url;
+    const reference = initData.transaction?.reference || initData.reference;
+
+    if (!authorizationUrl || !reference) {
+      console.error("NotchPay response missing authorizationUrl or reference", initData);
+      return res.status(502).json({ error: "Unexpected NotchPay response shape", raw: initData });
+    }
+
     return res.status(200).json({
-      reference: initData.transaction.reference,
-      authorizationUrl: initData.authorization_url || initData.transaction.authorization_url,
+      reference,
+      authorizationUrl,
       recipientName: process.env.RECIPIENT_NAME || "King Pronostics",
       status: "PENDING",
     });
