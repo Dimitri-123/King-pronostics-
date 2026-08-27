@@ -1,23 +1,6 @@
 import { useState } from "react";
 import { useLang } from "../context/LangContext";
 
-// Honest, non-quantified "hype" phrases for auto-generated matches — no
-// fabricated success-rate or unlock-count numbers, just a bit of flavor.
-// Picked deterministically per match id so the same fixture doesn't change
-// wording on every render/refresh.
-const HYPE_PHRASES = [
-  "🔥 Match très suivi",
-  "⚡ Rencontre à forts enjeux",
-  "👀 Beaucoup de discussions autour de ce match",
-  "🏆 Affiche majeure du jour",
-];
-function hypePhrase(id) {
-  let hash = 0;
-  const str = String(id);
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  return HYPE_PHRASES[Math.abs(hash) % HYPE_PHRASES.length];
-}
-
 export default function PrognosticCard({ prognostic, onUnlock }) {
   const { t, lang } = useLang();
   const [revealed, setRevealed] = useState(false);
@@ -47,27 +30,9 @@ export default function PrognosticCard({ prognostic, onUnlock }) {
         </div>
       </div>
 
-      <div style={{ margin: "14px 0" }}>
-        {prognostic.successRate != null ? (
-          <div style={{ display: "flex", gap: 18, fontSize: 13, color: "var(--muted)" }}>
-            <span>{prognostic.successRate}% {t.stats.successRate.split("(")[0]}</span>
-            {prognostic.buyers != null && <span>{prognostic.buyers} {t.prognostics.buyersCount}</span>}
-          </div>
-        ) : (
-          <span
-            style={{
-              display: "inline-block",
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: "var(--forest-deep)",
-              background: "var(--paper)",
-              padding: "5px 12px",
-              borderRadius: 999,
-            }}
-          >
-            {hypePhrase(prognostic.id)}
-          </span>
-        )}
+      <div style={{ display: "flex", gap: 18, margin: "14px 0", fontSize: 13, color: "var(--muted)" }}>
+        <span>{prognostic.successRate}% {t.stats.successRate.split("(")[0]}</span>
+        <span>{prognostic.buyers} {t.prognostics.buyersCount}</span>
       </div>
 
       {isFree && revealed ? (

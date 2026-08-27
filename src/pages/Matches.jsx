@@ -70,8 +70,8 @@ export default function Matches() {
           />
           <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -8, marginBottom: 18 }}>
             {lang === "fr"
-              ? "Premier League, Liga, Serie A, Bundesliga, Ligue 1, C1 et C3 — cotes 1N2 en FCFA fournies par Melbet, à titre indicatif."
-              : "Premier League, Liga, Serie A, Bundesliga, Ligue 1, UCL and UEL — 1X2 odds shown are from Melbet (in FCFA) and for reference only."}
+              ? "Premier League, Liga, Serie A, Bundesliga, Ligue 1, C1 et C3 — cotes 1N2 en FCFA (Melbet) réservées aux membres VIP, à titre indicatif."
+              : "Premier League, Liga, Serie A, Bundesliga, Ligue 1, UCL and UEL — 1X2 odds (Melbet, FCFA) are a VIP member perk, for reference only."}
           </p>
 
           {matchesLoading && <SpinnerRow />}
@@ -125,13 +125,28 @@ export default function Matches() {
                     <span style={{ fontSize: 12, color: "var(--muted)", fontFamily: "var(--font-mono)" }}>{m.time}</span>
                     <span className="status-dot status-pending" />
                   </div>
-                  {m.odds && (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-                      <OddBox label="1" value={m.odds.home} />
-                      <OddBox label="N" value={m.odds.draw} />
-                      <OddBox label="2" value={m.odds.away} />
-                    </div>
-                  )}
+                  {m.odds ? (
+                    unlocked ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                        <OddBox label="1" value={m.odds.home} />
+                        <OddBox label="N" value={m.odds.draw} />
+                        <OddBox label="2" value={m.odds.away} />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowPayment(true)}
+                        style={{
+                          width: "100%", marginTop: 12, paddingTop: 10, paddingBottom: 8,
+                          borderTop: "1px solid var(--line)", background: "none", border: "none",
+                          borderTopStyle: "solid", borderTopWidth: 1, borderTopColor: "var(--line)",
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                          fontSize: 11.5, fontWeight: 700, color: "var(--gold)",
+                        }}
+                      >
+                        🔒 {lang === "fr" ? "Cotes réservées aux membres VIP" : "Odds reserved for VIP members"}
+                      </button>
+                    )
+                  ) : null}
                 </div>
               ))}
             </div>

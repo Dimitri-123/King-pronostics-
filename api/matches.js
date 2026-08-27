@@ -2,6 +2,36 @@
 // "Free API Live Football Data" (RapidAPI), server-side to avoid CORS.
 // Set RAPIDAPI_KEY in Vercel -> Settings -> Environment Variables.
 //
+// v6 (27/08/2026): confirmed the RapidAPI plan is a hard-capped 100
+// requests/MONTH (not per day) — staying on the free tier per Mr OMB'S.
+// Budget across the whole site (this file + api/football.js standings):
+//   - matches-by-date: cached 24h  → ~30 calls/month
+//   - odds (now a VIP-gated perk): capped at 1 lookup per refresh → ~30/month
+//   - standings (api/football.js): cached 48h → ~15/month
+//   Total ≈ 75/month, leaving ~25 of buffer for RapidAPI playground testing.
+// Do not lower these cache durations without recalculating this budget —
+// dropping any one of them back to a 10-20 min cache alone can blow the
+// entire monthly quota within a single day (see the 429 outage on
+// 26/08/2026 that took down both matches and standings at once).
+//
+// Also: odds are now only shown to VIP-unlocked visitors on the frontend
+// (src/pages/Matches.jsx) — non-members see a "🔒 réservé aux membres VIP"
+// teaser instead of the numbers. The fetch below still only pulls odds for
+// MAX_ODDS_LOOKUPS matches regardless of who's viewing, since this is a
+// shared server-side cache, not a per-visitor fetch.
+//
+// v5 (27/08/2026): fixed two issues found after a RapidAPI quota exhaustion
+// (api_error_429) on 26/08/2026 made both this endpoint and standings go
+// blank at the same time:
+//  - Real fetch errors (429, 401, etc.) are now returned as
+//    `reason: "api_error_XXX"` instead of being swallowed into a
+//    misleadingly "successful" empty list — the frontend can now tell a
+//    genuine quiet day apart from an outage.
+//  - The multi-day fallback now stops immediately on a rate-limit instead of
+//    burning more quota retrying days 2-3, and both successes and failures
+//    are cached so page refreshes during an outage don't pile on more
+//    failed requests.
+//
 // v4 (26/08/2026):
 //  - Only returns matches that haven't kicked off yet (no more stale
 //    "Terminé" cards sitting in "Matchs populaires du jour").
@@ -38,10 +68,10 @@ function leagueLogo(leagueId) {
   return `https://images.fotmob.com/image_resources/logo/leaguelogo/dark/${leagueId}.png`;
 }
 
-// Max number of matches we'll fetch odds for per request. Each one is an
-// extra call to RapidAPI, so this is deliberately small to stay well inside
-// the free-tier monthly quota even if the page gets refreshed a lot.
-const MAX_ODDS_LOOKUPS = 8;
+// Max number of matches we'll fetch odds for per request. Kept at 1 to fit
+// the confirmed 100 requests/month hard limit on the free RapidAPI plan —
+// see the budget note in the file header before raising this.
+const MAX_ODDS_LOOKUPS = 1;
 // If today alone doesn't have at least this many upcoming popular-league
 // matches, pull the following days too instead of showing an almost-empty
 // section.
@@ -50,6 +80,11 @@ const MAX_DAYS_TO_CHECK = 3;
 // A match kicked off this many minutes ago is considered finished/in the
 // past and gets dropped from "upcoming popular matches".
 const MATCH_DURATION_BUFFER_MIN = 130;
+// Cache the fixture list for a full day — see the quota budget note above.
+const MATCHES_CACHE_SECONDS = 24 * 60 * 60;
+// Cache a failed/rate-limited response briefly so refreshes during an
+// outage don't compound the problem.
+const ERROR_CACHE_SECONDS = 2 * 60;
 
 function formatDateParam(date) {
   const yyyy = date.getFullYear();
@@ -68,6 +103,10 @@ function parseKickoff(timeStr) {
   return new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00`);
 }
 
+// Returns { matches, errorReason } — errorReason is set (and matches empty)
+// as soon as RapidAPI refuses the request, so the caller can stop looping
+// over more days instead of burning more quota on a request that's just
+// going to fail the same way.
 async function fetchMatchesForDate(dateParam, host, key) {
   const apiRes = await fetch(
     `https://${host}/football-get-matches-by-date?date=${dateParam}`,
@@ -75,10 +114,10 @@ async function fetchMatchesForDate(dateParam, host, key) {
   );
   if (!apiRes.ok) {
     console.error("Football API error", apiRes.status, await apiRes.text());
-    return [];
+    return { matches: [], errorReason: `api_error_${apiRes.status}` };
   }
   const json = await apiRes.json();
-  return json.response?.matches || [];
+  return { matches: json.response?.matches || [], errorReason: null };
 }
 
 export default async function handler(req, res) {
@@ -94,14 +133,22 @@ export default async function handler(req, res) {
     const now = new Date();
     const cacheKey = `kp:matches:upcoming:${formatDateParam(now)}`;
     const cached = await kv.get(cacheKey);
-    if (cached) return res.status(200).json({ matches: cached, reason: null, cached: true });
+    if (cached) return res.status(200).json({ ...cached, cached: true });
 
     let popular = [];
+    let errorReason = null;
     for (let dayOffset = 0; dayOffset < MAX_DAYS_TO_CHECK; dayOffset++) {
       const date = new Date(now);
       date.setDate(date.getDate() + dayOffset);
       const dateParam = formatDateParam(date);
-      const rawMatches = await fetchMatchesForDate(dateParam, RAPIDAPI_HOST, RAPIDAPI_KEY);
+      const { matches: rawMatches, errorReason: dayError } = await fetchMatchesForDate(dateParam, RAPIDAPI_HOST, RAPIDAPI_KEY);
+
+      if (dayError) {
+        // The API is refusing us (quota, auth, etc.) — stop immediately
+        // instead of retrying the same failure for days 2 and 3.
+        errorReason = dayError;
+        break;
+      }
 
       const dayLabel =
         dayOffset === 0
@@ -126,6 +173,14 @@ export default async function handler(req, res) {
       if (popular.length >= MIN_MATCHES_BEFORE_FALLBACK) break;
     }
 
+    if (errorReason) {
+      const payload = { matches: null, reason: errorReason };
+      // Cache the failure briefly too — if RapidAPI is rate-limiting us,
+      // hammering it again on every page load only digs the hole deeper.
+      await kv.set(cacheKey, payload, { ex: ERROR_CACHE_SECONDS });
+      return res.status(200).json(payload);
+    }
+
     const matches = await Promise.all(
       popular.slice(0, 24).map(async (m, index) => {
         const base = {
@@ -142,8 +197,10 @@ export default async function handler(req, res) {
           odds: null,
         };
 
-        // Only fetch odds for the first MAX_ODDS_LOOKUPS matches to protect
-        // the RapidAPI free-tier quota.
+        // Only fetch odds for the first MAX_ODDS_LOOKUPS match(es) — kept at
+        // 1 to fit the confirmed 100/month quota. This is now a VIP-gated
+        // perk (see src/pages/Matches.jsx), so a single featured match with
+        // real odds is enough; the rest simply show no odds box.
         if (index >= MAX_ODDS_LOOKUPS) return base;
 
         try {
@@ -182,13 +239,15 @@ export default async function handler(req, res) {
       })
     );
 
-    // Cache 10 minutes: long enough to spare the API quota, short enough
-    // that odds/kickoff filtering don't go too stale.
-    await kv.set(cacheKey, matches, { ex: 10 * 60 });
+    const payload = { matches, reason: null };
+    // Cache 24h — see the quota budget note in the file header. Don't lower
+    // this without recalculating the monthly request math.
+    await kv.set(cacheKey, payload, { ex: MATCHES_CACHE_SECONDS });
 
-    return res.status(200).json({ matches, reason: null });
+    return res.status(200).json(payload);
   } catch (err) {
     console.error(err);
     return res.status(200).json({ matches: null, reason: "exception" });
   }
 }
+

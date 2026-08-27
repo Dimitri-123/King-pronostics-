@@ -152,5 +152,28 @@ export const ticketGallery = [
   { id: "g4", status: "waiting", caption: "Ticket de demain — en attente", timestamp: "Aujourd'hui, 09:15", imageUrl: null },
 ];
 
+export const prognosticsToday = [
+  {
+    id: "p1",
+    championship: "Premier League",
+    teamA: "Arsenal",
+    teamB: "Chelsea",
+    successRate: 87,
+    buyers: 63,
+    expiresAt: "17:00",
+    isNew: true,
+  },
+  {
+    id: "p2",
+    championship: "Liga",
+    teamA: "Real Madrid",
+    teamB: "Sevilla",
+    successRate: 91,
+    buyers: 41,
+    expiresAt: "21:00",
+    isNew: false,
+  },
+];
+
 export const TICKET_PRICE = 2000;
 export const RECEIVING_FEE = 100;
