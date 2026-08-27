@@ -89,8 +89,13 @@ export default function Matches() {
               {matches.map((m) => (
                 <div key={m.id} className="card" style={{ padding: 16 }}>
                   {m.league && (
-                    <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--gold)", fontWeight: 700, marginBottom: 6 }}>
-                      {m.league}
+                    <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--gold)", fontWeight: 700, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+                      <span>{m.league}</span>
+                      {m.dayLabel && m.dayLabel !== "today" && (
+                        <span style={{ color: "var(--muted)" }}>
+                          {m.dayLabel === "tomorrow" ? (lang === "fr" ? "Demain" : "Tomorrow") : m.dayLabel}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -188,57 +193,91 @@ export default function Matches() {
           {standingsLoading && <SpinnerRow />}
 
           {!standingsLoading && standings && (
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 620 }}>
-                  <thead>
-                    <tr style={{ background: "var(--paper)", textAlign: "left" }}>
-                      <th style={thStyle}>#</th>
-                      <th style={thStyle}>{lang === "fr" ? "Équipe" : "Team"}</th>
-                      <th style={thStyle} title={lang === "fr" ? "Matchs joués" : "Matches played"}>
-                        {lang === "fr" ? "Joués" : "Played"}
-                      </th>
-                      <th style={thStyle} title={lang === "fr" ? "Matchs gagnés" : "Matches won"}>
-                        {lang === "fr" ? "Gagnés" : "Won"}
-                      </th>
-                      <th style={thStyle} title={lang === "fr" ? "Matchs nuls" : "Matches drawn"}>
-                        {lang === "fr" ? "Nuls" : "Drawn"}
-                      </th>
-                      <th style={thStyle} title={lang === "fr" ? "Matchs perdus" : "Matches lost"}>
-                        {lang === "fr" ? "Perdus" : "Lost"}
-                      </th>
-                      <th style={thStyle} title={lang === "fr" ? "Différence de buts" : "Goal difference"}>
-                        {lang === "fr" ? "Diff." : "Diff."}
-                      </th>
-                      <th style={thStyle} title={lang === "fr" ? "Points au classement" : "League points"}>
-                        {lang === "fr" ? "Points" : "Points"}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {standings.map((row, i) => {
-                      const diff = row.goalsDiff;
-                      const diffLabel = diff > 0 ? `+${diff}` : `${diff}`;
-                      const diffColor = diff > 0 ? "var(--forest)" : diff < 0 ? "var(--danger)" : "var(--muted)";
-                      return (
-                        <tr key={row.team} style={{ borderTop: "1px solid var(--line)", background: i < 4 ? "rgba(27,67,50,0.04)" : "transparent" }}>
-                          <td style={tdStyle}>{row.rank}</td>
-                          <td style={{ ...tdStyle, fontWeight: 600, whiteSpace: "nowrap" }}>{row.team}</td>
-                          <td style={tdStyle}>{row.played}</td>
-                          <td style={tdStyle}>{row.win}</td>
-                          <td style={tdStyle}>{row.draw}</td>
-                          <td style={tdStyle}>{row.lose}</td>
-                          <td style={{ ...tdStyle, fontWeight: 600, color: diffColor }}>
-                            {diff == null ? "—" : diffLabel}
-                          </td>
-                          <td style={{ ...tdStyle, fontWeight: 700, color: "var(--forest)" }}>{row.points}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            <>
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, minWidth: 640 }}>
+                    <thead>
+                      <tr style={{ background: "var(--paper)", textAlign: "left" }}>
+                        <th style={{ ...thStyle, width: 40 }}></th>
+                        <th style={thStyle}>#</th>
+                        <th style={thStyle}>{lang === "fr" ? "Équipe" : "Team"}</th>
+                        <th style={thStyle} title={lang === "fr" ? "Matchs joués" : "Matches played"}>
+                          {lang === "fr" ? "Joués" : "Played"}
+                        </th>
+                        <th style={thStyle} title={lang === "fr" ? "Matchs gagnés" : "Matches won"}>
+                          {lang === "fr" ? "Gagnés" : "Won"}
+                        </th>
+                        <th style={thStyle} title={lang === "fr" ? "Matchs nuls" : "Matches drawn"}>
+                          {lang === "fr" ? "Nuls" : "Drawn"}
+                        </th>
+                        <th style={thStyle} title={lang === "fr" ? "Matchs perdus" : "Matches lost"}>
+                          {lang === "fr" ? "Perdus" : "Lost"}
+                        </th>
+                        <th style={thStyle} title={lang === "fr" ? "Différence de buts" : "Goal difference"}>
+                          {lang === "fr" ? "Diff." : "Diff."}
+                        </th>
+                        <th style={thStyle} title={lang === "fr" ? "Points au classement" : "League points"}>
+                          {lang === "fr" ? "Points" : "Points"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {standings.map((row, i) => {
+                        const diff = row.goalsDiff;
+                        const diffLabel = diff > 0 ? `+${diff}` : `${diff}`;
+                        const diffColor = diff > 0 ? "var(--forest)" : diff < 0 ? "var(--danger)" : "var(--muted)";
+                        const zoneColor = i < 4 ? "var(--gold)" : i >= standings.length - 3 ? "var(--danger)" : "transparent";
+                        const avatar = teamAvatar(row.team, i);
+                        return (
+                          <tr key={row.team} style={{ borderTop: "1px solid var(--line)" }}>
+                            <td style={{ padding: 0, borderLeft: `4px solid ${zoneColor}` }}></td>
+                            <td style={{ ...tdStyle, fontWeight: 700, color: "var(--muted)" }}>{row.rank}</td>
+                            <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div
+                                  style={{
+                                    width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                                    background: avatar.bg, color: "#fff",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: 10.5, fontWeight: 700,
+                                  }}
+                                >
+                                  {avatar.initials}
+                                </div>
+                                <span style={{ fontWeight: 600 }}>{row.team}</span>
+                              </div>
+                            </td>
+                            <td style={tdStyle}>{row.played}</td>
+                            <td style={tdStyle}>{row.win}</td>
+                            <td style={tdStyle}>{row.draw}</td>
+                            <td style={tdStyle}>{row.lose}</td>
+                            <td style={{ ...tdStyle, fontWeight: 600, color: diffColor }}>
+                              {diff == null ? "—" : diffLabel}
+                            </td>
+                            <td style={tdStyle}>
+                              <span style={{ background: "var(--forest-deep)", color: "#fff", fontWeight: 700, padding: "3px 11px", borderRadius: 999, fontSize: 12.5 }}>
+                                {row.points}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+              <div style={{ display: "flex", gap: 18, marginTop: 12, fontSize: 12, color: "var(--muted)" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--gold)", display: "inline-block" }} />
+                  {lang === "fr" ? "Zone Ligue des Champions" : "Champions League zone"}
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--danger)", display: "inline-block" }} />
+                  {lang === "fr" ? "Zone de relégation" : "Relegation zone"}
+                </span>
+              </div>
+            </>
           )}
 
           {!standingsLoading && !standings && (
@@ -258,7 +297,7 @@ export default function Matches() {
               ? "18+ · Contenu publicitaire · Jouer comporte des risques."
               : "18+ · Advertising content · Gambling involves risk."}
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 620 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, alignItems: "start" }}>
             {promoCodes.map((p, i) => (
               <BookmakerCard key={p.platform} rank={i + 1} data={p} lang={lang} />
             ))}
@@ -300,7 +339,7 @@ export default function Matches() {
 }
 
 function BookmakerCard({ rank, data, lang }) {
-  const { platform, rating, bonus, code, url, tags, highlight } = data;
+  const { platform, rating, bonus, bonusDetail, code, url, tags, highlight, badgeBg, badgeColor } = data;
   const [copied, setCopied] = useState(false);
 
   function handleCopy(e) {
@@ -317,76 +356,106 @@ function BookmakerCard({ rank, data, lang }) {
       className="card"
       style={{
         position: "relative",
-        padding: "20px 20px 18px",
-        border: highlight ? "1.5px solid var(--gold)" : undefined,
+        padding: "22px 20px 20px",
+        border: highlight ? "2px solid var(--gold)" : "1px solid var(--line)",
+        boxShadow: highlight ? "0 8px 28px rgba(201,150,44,0.18)" : "var(--shadow)",
       }}
     >
       {highlight && (
         <div
           style={{
             position: "absolute",
-            top: -12,
-            left: 18,
+            top: 0,
+            left: 0,
             background: "var(--forest)",
             color: "#fff",
             fontSize: 11,
             fontWeight: 700,
-            letterSpacing: "0.04em",
-            padding: "4px 12px",
-            borderRadius: 999,
+            letterSpacing: "0.03em",
+            padding: "6px 16px 6px 14px",
+            borderRadius: "12px 0 12px 0",
           }}
         >
-          {lang === "fr" ? "Bookmaker n°1" : "Top bookmaker"}
+          {lang === "fr" ? "★ Bookmaker n°1" : "★ Top bookmaker"}
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginTop: highlight ? 22 : 0 }}>
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
           <div
             style={{
-              width: 30, height: 30, borderRadius: "50%",
+              position: "absolute",
+              top: -10,
+              left: -10,
+              width: 26, height: 26, borderRadius: "50%",
               background: "var(--forest-deep)", color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, fontWeight: 700, flexShrink: 0,
+              fontSize: 12, fontWeight: 700, border: "2px solid var(--panel)",
+              zIndex: 1,
             }}
           >
             {rank}
           </div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 19 }}>
+          <div
+            style={{
+              background: badgeBg || "var(--forest-deep)",
+              color: badgeColor || "#fff",
+              fontFamily: "var(--font-display)",
+              fontWeight: 800,
+              fontSize: 18,
+              padding: "10px 20px 10px 24px",
+              borderRadius: 8,
+              letterSpacing: "0.01em",
+            }}
+          >
             {platform}
           </div>
         </div>
+
         {rating != null && (
           <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--forest)" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)", lineHeight: 1 }}>
               {rating.toFixed(1)}<span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>/10</span>
             </div>
-            <div style={{ width: 60, height: 4, background: "var(--line)", borderRadius: 999, marginTop: 3, overflow: "hidden" }}>
-              <div style={{ width: `${rating * 10}%`, height: "100%", background: "var(--gold)" }} />
-            </div>
+            {code && (
+              <button
+                onClick={handleCopy}
+                style={{ background: "none", border: "none", padding: 0, marginTop: 4, fontSize: 11.5, color: "var(--forest)", textDecoration: "underline", cursor: "pointer" }}
+              >
+                {lang === "fr" ? `Code promo ${platform}` : `${platform} promo code`}
+              </button>
+            )}
           </div>
         )}
       </div>
 
       <div
         style={{
-          marginTop: 14,
-          background: "var(--gold-soft)",
+          marginTop: 16,
+          background: "var(--paper)",
           borderRadius: 10,
-          padding: "10px 14px",
+          padding: "12px 14px",
           textAlign: "center",
         }}
       >
-        <span style={{ fontSize: 12, color: "var(--forest-deep)", marginRight: 6 }}>
-          {lang === "fr" ? "Bonus" : "Bonus"} :
-        </span>
-        <span style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)" }}>{bonus}</span>
+        <div>
+          <span style={{ fontSize: 12.5, color: "var(--muted)", marginRight: 6 }}>
+            {lang === "fr" ? "Bonus" : "Bonus"} :
+          </span>
+          <span style={{ fontSize: 24, fontWeight: 800, color: "var(--gold)" }}>{bonus}</span>
+        </div>
+        {bonusDetail && (
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>{bonusDetail}</div>
+        )}
       </div>
 
-      <ul style={{ listStyle: "none", padding: 0, margin: "14px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
-        {(tags || []).map((tag) => (
+      <ul style={{ listStyle: "none", padding: 0, margin: "14px 0 0", display: "flex", flexDirection: "column", gap: 7 }}>
+        {(tags || []).map((tag, idx) => (
           <li key={tag} style={{ fontSize: 13, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "var(--forest)" }}>✓</span> {tag}
+            <span style={{ color: "var(--forest)", fontSize: 13 }}>
+              {idx === 0 ? "✓" : idx === 1 ? "🎟️" : "⭐"}
+            </span>
+            {tag}
           </li>
         ))}
       </ul>
@@ -395,19 +464,26 @@ function BookmakerCard({ rank, data, lang }) {
         <button
           onClick={handleCopy}
           style={{
-            marginTop: 14, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
-            background: "var(--paper)", border: "1.5px dashed var(--line)", borderRadius: 8,
-            padding: "9px 14px", fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--ink)",
+            marginTop: 16, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+            background: "var(--panel)", border: "1.5px dashed var(--line)", borderRadius: 8,
+            padding: "10px 14px",
           }}
         >
-          <span>
-            <span style={{ color: "var(--muted)", marginRight: 8 }}>
-              {lang === "fr" ? "Code promo" : "Promo code"}
-            </span>
-            {code}
+          <span style={{ textAlign: "left" }}>
+            <div style={{ fontSize: 10.5, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              {lang === "fr" ? "Code Promo" : "Promo Code"}
+            </div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700 }}>{code}</div>
           </span>
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: copied ? "var(--forest)" : "var(--gold)" }}>
-            {copied ? (lang === "fr" ? "Copié !" : "Copied!") : (lang === "fr" ? "Copier" : "Copy")}
+          <span
+            style={{
+              width: 30, height: 30, borderRadius: 6, flexShrink: 0,
+              background: copied ? "var(--forest)" : "var(--forest-deep)",
+              color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 13,
+            }}
+          >
+            {copied ? "✓" : "⧉"}
           </span>
         </button>
       )}
@@ -417,12 +493,29 @@ function BookmakerCard({ rank, data, lang }) {
         target="_blank"
         rel="noreferrer"
         className="btn btn-gold"
-        style={{ marginTop: 14, width: "100%" }}
+        style={{ marginTop: 16, width: "100%", fontWeight: 700, letterSpacing: "0.02em", textTransform: "uppercase", fontSize: 13 }}
       >
         {lang === "fr" ? "Obtenir le bonus" : "Claim the bonus"} ↗
       </a>
     </div>
   );
+}
+
+// Deterministic color for a team's initials avatar, since we don't have
+// real crest images — same team always gets the same color.
+const AVATAR_PALETTE = ["#1B4332", "#C9962C", "#0057FF", "#8B2E2E", "#3D5A80", "#6A4C93", "#2A9D8F"];
+function teamAvatar(teamName, fallbackIndex) {
+  const initials = teamName
+    .split(" ")
+    .filter((w) => w.length > 2 || w === w.toUpperCase())
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase() || teamName.slice(0, 2).toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < teamName.length; i++) hash = teamName.charCodeAt(i) + ((hash << 5) - hash);
+  const color = AVATAR_PALETTE[Math.abs(hash || fallbackIndex) % AVATAR_PALETTE.length];
+  return { initials, bg: color };
 }
 
 function OddBox({ label, value }) {

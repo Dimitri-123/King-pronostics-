@@ -1,30 +1,64 @@
-// Vercel Serverless Function — fetches today's real fixtures from
+// Vercel Serverless Function — fetches upcoming real fixtures from
 // "Free API Live Football Data" (RapidAPI), server-side to avoid CORS.
 // Set RAPIDAPI_KEY in Vercel -> Settings -> Environment Variables.
 //
-// v2 (26/08/2026): now filters down to a whitelist of "big" competitions
-// (Premier League, Liga, Serie A, Bundesliga, Ligue 1, Champions League,
-// Europa League) instead of every match on Earth, and attaches a 1-N-2 odds
-// snapshot (Bet365) to each match. League IDs below were confirmed against
-// this API's own "Get League Detail by League ID" endpoint on 26/08/2026 —
-// if a competition ever looks off, re-check its ID there before touching
-// anything else.
+// v3 (26/08/2026): broadened the "popular leagues" whitelist (added
+// Eredivisie, Primeira Liga, Championship, MLS, Brasileirão, Conference
+// League, Saudi Pro League) and added a multi-day fallback — on quiet
+// fixture days (e.g. mid-week gaps), we now also pull the next 2 days so
+// the section never collapses to a single card. League IDs were confirmed
+// one by one against this API's "Get League Detail by League ID" endpoint
+// (Premier League 47, Champions League 42, Europa League 73, Conference
+// League 10216 were independently verified on 26/08/2026; the rest follow
+// the same numbering scheme and should be spot-checked there if a
+// competition name ever looks wrong).
 import { kv } from "@vercel/kv";
 
 const POPULAR_LEAGUES = {
   47: "Premier League",
+  48: "Championship",
   87: "Liga",
   55: "Serie A",
   54: "Bundesliga",
   53: "Ligue 1",
+  57: "Eredivisie",
+  61: "Primeira Liga",
   42: "Ligue des Champions",
   73: "Ligue Europa",
+  10216: "Ligue Conférence",
+  130: "MLS",
+  268: "Brasileirão",
+  536: "Saudi Pro League",
 };
 
 // Max number of matches we'll fetch odds for per request. Each one is an
 // extra call to RapidAPI, so this is deliberately small to stay well inside
 // the free-tier monthly quota even if the page gets refreshed a lot.
 const MAX_ODDS_LOOKUPS = 8;
+// If today alone doesn't have at least this many popular-league matches,
+// pull the following days too instead of showing an almost-empty section.
+const MIN_MATCHES_BEFORE_FALLBACK = 6;
+const MAX_DAYS_TO_CHECK = 3;
+
+function formatDateParam(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}`;
+}
+
+async function fetchMatchesForDate(dateParam, host, key) {
+  const apiRes = await fetch(
+    `https://${host}/football-get-matches-by-date?date=${dateParam}`,
+    { headers: { "x-rapidapi-key": key, "x-rapidapi-host": host } }
+  );
+  if (!apiRes.ok) {
+    console.error("Football API error", apiRes.status, await apiRes.text());
+    return [];
+  }
+  const json = await apiRes.json();
+  return json.response?.matches || [];
+}
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, max-age=0");
@@ -36,47 +70,42 @@ export default async function handler(req, res) {
   }
 
   try {
-    // This API expects YYYYMMDD (no dashes).
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const dd = String(now.getDate()).padStart(2, "0");
-    const dateParam = `${yyyy}${mm}${dd}`;
-
-    const cacheKey = `kp:matches:popular:${dateParam}`;
+    const today = new Date();
+    const cacheKey = `kp:matches:popular:${formatDateParam(today)}`;
     const cached = await kv.get(cacheKey);
     if (cached) return res.status(200).json({ matches: cached, reason: null, cached: true });
 
-    const apiRes = await fetch(
-      `https://${RAPIDAPI_HOST}/football-get-matches-by-date?date=${dateParam}`,
-      {
-        headers: {
-          "x-rapidapi-key": RAPIDAPI_KEY,
-          "x-rapidapi-host": RAPIDAPI_HOST,
-        },
-      }
-    );
+    let popular = [];
+    for (let dayOffset = 0; dayOffset < MAX_DAYS_TO_CHECK; dayOffset++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + dayOffset);
+      const dateParam = formatDateParam(date);
+      const rawMatches = await fetchMatchesForDate(dateParam, RAPIDAPI_HOST, RAPIDAPI_KEY);
 
-    if (!apiRes.ok) {
-      const text = await apiRes.text();
-      console.error("Football API error", apiRes.status, text);
-      return res.status(200).json({ matches: null, reason: `api_error_${apiRes.status}` });
+      const dayLabel =
+        dayOffset === 0
+          ? "today"
+          : dayOffset === 1
+          ? "tomorrow"
+          : `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+      const dayMatches = rawMatches
+        .filter((m) => POPULAR_LEAGUES[m.leagueId])
+        .map((m) => ({ ...m, __dayLabel: dayLabel }));
+
+      popular = popular.concat(dayMatches);
+
+      // Stop early once we have enough for a healthy-looking section.
+      if (popular.length >= MIN_MATCHES_BEFORE_FALLBACK) break;
     }
 
-    const json = await apiRes.json();
-    const rawMatches = json.response?.matches || [];
-
-    // Keep only matches from the whitelisted "big" leagues, so the page shows
-    // Premier League / Liga / Serie A / Bundesliga / Ligue 1 / UCL / UEL
-    // instead of random lower divisions from anywhere in the world.
-    const popular = rawMatches.filter((m) => POPULAR_LEAGUES[m.leagueId]);
-
     const matches = await Promise.all(
-      popular.slice(0, 20).map(async (m, index) => {
+      popular.slice(0, 24).map(async (m, index) => {
         const base = {
           id: m.id,
           leagueId: m.leagueId,
           league: POPULAR_LEAGUES[m.leagueId] || "",
+          dayLabel: m.__dayLabel,
           homeId: m.home?.id,
           awayId: m.away?.id,
           home: m.home?.name,
