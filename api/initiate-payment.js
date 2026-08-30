@@ -1,19 +1,25 @@
 // Vercel Serverless Function — runs server-side only.
-// Your NotchPay private key and hash key NEVER reach the browser.
-// Set these in Vercel -> Project -> Settings -> Environment Variables:
-//   NOTCHPAY_PUBLIC_KEY   (starts with pk. or sb_pk. for sandbox)
-//   RECIPIENT_NAME        display name shown to clients before they confirm
+// Your Monetbil Service Key NEVER reaches the browser.
+// Set this in Vercel -> Project -> Settings -> Environment Variables:
+//   MONETBIL_SERVICE_KEY
 //
-// This uses NotchPay's hosted checkout (the same reliable payment page
-// their own "Quick Links" feature uses) instead of a custom direct-charge
-// call — more reliable since NotchPay handles the MTN prompt themselves.
-// Flow: 1) initialize a payment -> get an authorization_url
-//       2) the client completes payment on NotchPay's own page
-//       3) poll /api/verify-payment to confirm success
+// 28/08/2026 — Switched to Monetbil after both NotchPay (support
+// unresponsive for a month on a stuck transaction) and CinetPay (requires a
+// registered business / RCCM + sales approval, not viable for a solo
+// entrepreneur without one) didn't work out. Monetbil is a Cameroonian
+// company (since 2015) with self-serve signup, no business registration
+// required — confirmed on 28/08/2026 by actually signing up.
+//
+// Unlike the previous two providers, Monetbil's Payment API v1 is a DIRECT
+// charge API — no hosted checkout page/iframe needed. One POST call
+// directly triggers the Mobile Money USSD prompt on the client's phone.
+// Official docs: https://www.monetbil.com/docs/monetbil-payment-api-v1-en.pdf
 
-const NOTCHPAY_BASE = "https://api.notchpay.co";
+const MONETBIL_BASE = "https://api.monetbil.com/payment/v1";
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -25,59 +31,42 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing payerPhone or amount" });
     }
 
-    const publicKey = process.env.NOTCHPAY_PUBLIC_KEY;
-    if (!publicKey) {
+    const serviceKey = process.env.MONETBIL_SERVICE_KEY;
+    if (!serviceKey) {
       return res.status(500).json({ error: "Payment provider not configured" });
     }
 
-    // Normalize to the full Cameroon international format (237XXXXXXXXX).
-    // Mobile money operators need this to route the USSD prompt correctly —
-    // a local 9-digit number ("670000000") without the country code can
-    // silently fail to trigger any prompt at all, which matches the "stuck
-    // on Payment in Progress forever" symptom reported on 27/08/2026.
+    // Normalize to the full Cameroon international format (237XXXXXXXXX,
+    // no + sign — matches Monetbil's own documented examples exactly).
     const digitsOnly = payerPhone.replace(/\D/g, "");
-    const normalizedPhone = digitsOnly.startsWith("237")
-      ? digitsOnly
-      : `237${digitsOnly.replace(/^0+/, "")}`;
+    const localDigits = digitsOnly.startsWith("237") ? digitsOnly.slice(3) : digitsOnly.replace(/^0+/, "");
+    const normalizedPhone = `237${localDigits}`;
 
-    const initRes = await fetch(`${NOTCHPAY_BASE}/payments/initialize`, {
+    const placeRes = await fetch(`${MONETBIL_BASE}/placePayment`, {
       method: "POST",
-      headers: {
-        Authorization: publicKey,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        service: serviceKey,
+        phonenumber: normalizedPhone,
         amount: Number(amount),
-        currency: "XAF",
-        email: "client@kingpronostics.com",
-        phone: normalizedPhone,
-        reference: `kp-${Date.now()}`,
-        description: "King Pronostics - Ticket du jour",
       }),
     });
 
-    const initData = await initRes.json();
-    if (!initRes.ok) {
-      console.error("NotchPay initialize error", initRes.status, initData);
-      return res.status(initRes.status).json({ error: initData });
-    }
+    const data = await placeRes.json();
 
-    // Log the raw response so we can confirm NotchPay's exact field names in
-    // Vercel -> Logs if the frontend ever reports a missing authorizationUrl.
-    console.log("NotchPay initialize response", JSON.stringify(initData));
+    // Log the raw response so we can confirm Monetbil's exact field names
+    // in Vercel -> Logs if the frontend ever reports a problem.
+    console.log("Monetbil placePayment response", JSON.stringify(data));
 
-    const authorizationUrl = initData.authorization_url || initData.transaction?.authorization_url;
-    const reference = initData.transaction?.reference || initData.reference;
-
-    if (!authorizationUrl || !reference) {
-      console.error("NotchPay response missing authorizationUrl or reference", initData);
-      return res.status(502).json({ error: "Unexpected NotchPay response shape", raw: initData });
+    if (data.status !== "REQUEST_ACCEPTED" || !data.paymentId) {
+      console.error("Monetbil placePayment error", data);
+      return res.status(502).json({ error: data });
     }
 
     return res.status(200).json({
-      reference,
-      authorizationUrl,
-      recipientName: process.env.RECIPIENT_NAME || "King Pronostics",
+      reference: data.paymentId,
+      channelName: data.channel_name || null, // e.g. "MTN Mobile Money"
+      channelUssd: data.channel_ussd || null, // e.g. "*126#"
       status: "PENDING",
     });
   } catch (err) {

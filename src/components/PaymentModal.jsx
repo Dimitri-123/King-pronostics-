@@ -3,13 +3,13 @@ import { useLang } from "../context/LangContext";
 import { TICKET_PRICE, RECEIVING_FEE } from "../data/mockData";
 import { recordPayment } from "../lib/store";
 
-const STEPS = { FORM: "form", CONFIRM: "confirm", PROCESSING: "processing", CHECKOUT: "checkout", DONE: "done", ERROR: "error" };
+const STEPS = { FORM: "form", CONFIRM: "confirm", PROCESSING: "processing", AWAITING: "awaiting", DONE: "done", ERROR: "error" };
 
 export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [step, setStep] = useState(STEPS.FORM);
   const [phone, setPhone] = useState("");
-  const [checkoutUrl, setCheckoutUrl] = useState(null);
+  const [channelInfo, setChannelInfo] = useState(null);
   const total = TICKET_PRICE + RECEIVING_FEE;
   const recipientName = import.meta.env.VITE_RECIPIENT_DISPLAY_NAME || "Kelvin — King Pronostics";
 
@@ -36,23 +36,20 @@ export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
       if (!res.ok) throw new Error("init failed");
       const data = await res.json();
 
-      // Show NotchPay's hosted payment page inside our own modal (iframe)
-      // so the client never visually leaves the site.
-      if (data.authorizationUrl && data.reference) {
-        setCheckoutUrl(data.authorizationUrl);
-        setStep(STEPS.CHECKOUT);
+      // Monetbil directly triggers the Mobile Money USSD prompt on the
+      // client's phone — no hosted page to show, so we just move to an
+      // "awaiting confirmation" screen instead of an iframe/checkout step.
+      if (data.reference) {
+        setChannelInfo({ name: data.channelName, ussd: data.channelUssd });
+        setStep(STEPS.AWAITING);
       } else {
-        // Previously this case fell through silently, leaving the modal
-        // stuck on "Traitement en cours" forever. Log the raw payload (visible
-        // in browser DevTools console) so we can see NotchPay's actual field
-        // names if this fires again, then fail loudly instead of hanging.
-        console.error("initiate-payment: missing authorizationUrl/reference in response", data);
+        console.error("initiate-payment: missing reference in response", data);
         setStep(STEPS.ERROR);
         return;
       }
 
       // Poll verify-payment every 3s, up to ~3 minutes, while the client
-      // completes the payment on the NotchPay page.
+      // confirms the payment on their phone.
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts += 1;
@@ -82,7 +79,7 @@ export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
 
   return (
     <div style={overlay}>
-      <div className="card" style={{ ...modal, maxWidth: step === STEPS.CHECKOUT ? 480 : 420 }}>
+      <div className="card" style={{ ...modal, maxWidth: 420 }}>
         <button onClick={onClose} style={closeBtn} aria-label="Close">✕</button>
 
         {step === STEPS.FORM && (
@@ -140,16 +137,26 @@ export default function PaymentModal({ onClose, itemLabel, onSuccess }) {
           </div>
         )}
 
-        {step === STEPS.CHECKOUT && checkoutUrl && (
-          <div>
-            <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10, textAlign: "center" }}>
-              {t.payment.checkoutHint}
+        {step === STEPS.AWAITING && (
+          <div style={{ textAlign: "center", padding: "10px 0" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📱</div>
+            <p style={{ fontWeight: 700, fontSize: 16 }}>
+              {lang === "fr" ? "Confirmez sur votre téléphone" : "Confirm on your phone"}
             </p>
-            <iframe
-              src={checkoutUrl}
-              title="Paiement"
-              style={{ width: "100%", height: 420, border: "1px solid var(--line)", borderRadius: 10 }}
-            />
+            <p style={{ color: "var(--muted)", fontSize: 13.5, marginTop: 8, lineHeight: 1.5 }}>
+              {lang === "fr"
+                ? `Une demande de paiement ${channelInfo?.name ? `via ${channelInfo.name}` : "Mobile Money"} vient d'être envoyée sur votre téléphone. Composez le code affiché à l'écran (ou validez la notification) pour finaliser.`
+                : `A ${channelInfo?.name || "Mobile Money"} payment request has been sent to your phone. Follow the on-screen prompt to confirm.`}
+            </p>
+            {channelInfo?.ussd && (
+              <div style={{ marginTop: 14, fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 700, background: "var(--paper)", borderRadius: 8, padding: "8px 12px", display: "inline-block" }}>
+                {channelInfo.ussd}
+              </div>
+            )}
+            <div className="spinner" style={{ margin: "20px auto 0" }} />
+            <p style={{ fontSize: 11.5, color: "var(--danger)", marginTop: 14 }}>
+              {lang === "fr" ? "Ne fermez pas cette fenêtre." : "Don't close this window."}
+            </p>
           </div>
         )}
 

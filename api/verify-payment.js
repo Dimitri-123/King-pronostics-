@@ -1,16 +1,14 @@
-// Vercel Serverless Function — checks NotchPay payment status by reference.
+// Vercel Serverless Function — checks Monetbil payment status by paymentId
+// (called "reference" in our own frontend contract).
 // Called repeatedly (polling) by the frontend after initiate-payment.
 //
-// FIX (27/08/2026): this was the only API route missing a no-cache header.
-// Vercel's edge was serving a cached 304 for every repeated poll (same URL
-// + query string = same cache key), so the frontend kept receiving the
-// FIRST response ("PENDING") forever, even after the real payment on
-// NotchPay's side had completed. This is very likely the actual cause of
-// the "stuck on Payment in Progress forever" symptom — more so than the
-// phone number formatting fixed earlier, though that fix was still correct
-// and worth keeping.
+// 28/08/2026 — switched to Monetbil (see initiate-payment.js header for
+// why). Keeps the no-store cache header that fixed a real bug on the old
+// NotchPay integration: without it, Vercel's edge served a cached 304 for
+// every repeated poll (same URL = same cache key), so the frontend kept
+// seeing the FIRST response forever even after the real payment succeeded.
 
-const NOTCHPAY_BASE = "https://api.notchpay.co";
+const MONETBIL_BASE = "https://api.monetbil.com/payment/v1";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, max-age=0");
@@ -25,19 +23,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    const publicKey = process.env.NOTCHPAY_PUBLIC_KEY;
-
-    const notchRes = await fetch(`${NOTCHPAY_BASE}/payments/${reference}`, {
-      headers: { Authorization: publicKey },
+    const checkRes = await fetch(`${MONETBIL_BASE}/checkPayment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentId: reference }),
     });
 
-    const data = await notchRes.json();
+    const data = await checkRes.json();
 
-    // NotchPay statuses: pending, processing, complete, failed
+    // Monetbil transaction.status: 1 = success, -1 = cancelled, anything
+    // else = still pending/failed. See docs.
     const status = data?.transaction?.status;
     const normalized =
-      status === "complete" ? "SUCCESSFUL" :
-      status === "failed" ? "FAILED" : "PENDING";
+      status === 1 ? "SUCCESSFUL" :
+      status === -1 ? "FAILED" : "PENDING";
 
     return res.status(200).json({ status: normalized });
   } catch (err) {
