@@ -9,7 +9,18 @@ export default function Gallery() {
   const [uploaded, setUploaded] = useState([]);
 
   useEffect(() => {
-    getTicketImages().then(setUploaded);
+    getTicketImages().then((serverTickets) => {
+      // Only show tickets explicitly published for the Gallery ("gallery"
+      // or "both"). Tickets uploaded before this destination field existed
+      // have no "destination" set — since the admin form now defaults new
+      // uploads to "VIP only", we treat missing destination the same way
+      // (not shown here) so this actually fixes already-published tickets
+      // too, not just new ones.
+      const forGallery = serverTickets.filter(
+        (t) => t.destination === "gallery" || t.destination === "both"
+      );
+      setUploaded(forGallery);
+    });
   }, []);
 
   const all = [...uploaded, ...ticketGallery];

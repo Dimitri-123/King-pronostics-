@@ -15,8 +15,14 @@ export default function VipTickets() {
 
   useEffect(() => {
     getTicketImages().then((serverTickets) => {
-      const nonFree = serverTickets.filter((t) => !t.isFree);
-      setTickets([...nonFree, ...ticketGallery]);
+      // Only show tickets explicitly published for VIP ("vip" or "both").
+      // Tickets uploaded before this destination field existed have no
+      // "destination" set — treat those as visible here too, so nothing
+      // that was already published silently disappears.
+      const forVip = serverTickets.filter(
+        (t) => !t.isFree && (!t.destination || t.destination === "vip" || t.destination === "both")
+      );
+      setTickets([...forVip, ...ticketGallery]);
       setLoading(false);
     });
   }, []);

@@ -21,7 +21,7 @@ export default function Dashboard() {
   const [sharePercent, setSharePercent] = useState(50);
   const [loading, setLoading] = useState(true);
 
-  const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending", isFree: false, previewInfo: "" });
+  const [ticketForm, setTicketForm] = useState({ caption: "", status: "pending", isFree: false, previewInfo: "", destination: "vip" });
   const [ticketFile, setTicketFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -158,7 +158,7 @@ export default function Dashboard() {
 
     await addTicketImage({ ...ticketForm, imageUrl });
     setTickets(await getTicketImages());
-    setTicketForm({ caption: "", status: "pending", isFree: false, previewInfo: "" });
+    setTicketForm({ caption: "", status: "pending", isFree: false, previewInfo: "", destination: "vip" });
     setTicketFile(null);
     e.target.reset();
   }
@@ -321,6 +321,27 @@ export default function Dashboard() {
           <input type="file" accept="image/*" style={{ marginTop: 8 }}
             onChange={(e) => setTicketFile(e.target.files?.[0] || null)}
           />
+          <div style={{ marginTop: 10, marginBottom: 4 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
+              {lang === "fr" ? "Où publier ce ticket ?" : "Where should this ticket appear?"}
+            </p>
+            {[
+              { value: "vip", label: lang === "fr" ? "Ticket VIP uniquement" : "VIP only" },
+              { value: "gallery", label: lang === "fr" ? "Galerie uniquement" : "Gallery only" },
+              { value: "both", label: lang === "fr" ? "Les deux" : "Both" },
+            ].map((opt) => (
+              <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, marginTop: 4 }}>
+                <input
+                  type="radio"
+                  name="ticket-destination"
+                  value={opt.value}
+                  checked={ticketForm.destination === opt.value}
+                  onChange={(e) => setTicketForm({ ...ticketForm, destination: e.target.value })}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13 }}>
             <input type="checkbox" checked={ticketForm.isFree}
               onChange={(e) => setTicketForm({ ...ticketForm, isFree: e.target.checked })} />
@@ -377,7 +398,14 @@ export default function Dashboard() {
           )}
           {tickets.map((tk) => (
             <div key={tk.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
-              <span>{tk.caption} {tk.isFree && "🎁"}</span>
+              <span>
+                {tk.caption} {tk.isFree && "🎁"}{" "}
+                <span style={{ fontSize: 10.5, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                  · {tk.destination === "gallery" ? (lang === "fr" ? "Galerie" : "Gallery")
+                    : tk.destination === "both" ? (lang === "fr" ? "VIP + Galerie" : "VIP + Gallery")
+                    : (lang === "fr" ? "VIP" : "VIP")}
+                </span>
+              </span>
               <button onClick={() => handleDeleteTicket(tk.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 12, cursor: "pointer" }}>
                 {lang === "fr" ? "Supprimer" : "Delete"}
               </button>
